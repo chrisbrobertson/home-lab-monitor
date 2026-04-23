@@ -34,6 +34,7 @@ hosts:
   - name: "C02D83TGMD6T"
     address: "192.168.1.81"
     port: 9100
+    ssh_user: "chrisrobertson"
 
   - name: "mbp15-1"
     address: "192.168.1.85"
