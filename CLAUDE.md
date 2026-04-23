@@ -34,6 +34,8 @@ home-lab-monitor/
 │       └── index.html      # Single-file dashboard (Chart.js, vanilla JS)
 ├── config/
 │   └── config.example.yml  # Template for host, registry, and slot_policy configuration
+├── scripts/
+│   └── setup-dev-host.sh   # Idempotent macOS dev slot host bootstrap (see specs/dev-host-setup-v0.1.md)
 ├── systemd/                # Linux service units for agent and server
 ├── launchd/                # macOS plist files for agent and server (user + system variants)
 ├── templates/

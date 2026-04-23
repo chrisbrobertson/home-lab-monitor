@@ -73,28 +73,20 @@ Steps 3–7 are the caller's responsibility. The monitor server is involved only
 
 #### Dev host (where the container runs)
 
-The dev host runs Colima as its container runtime. Two configuration steps are required before the workflow will succeed:
+Run `scripts/setup-dev-host.sh` to configure a dev host end-to-end (see `specs/dev-host-setup-v0.1.md` for the full specification). This installs Colima, the monitoring agent, and the insecure-registry configuration in a single idempotent pass. Safe to cancel and re-run at any point.
 
-**1. Insecure registry**
-
-The lab registry at `192.168.1.93:5000` uses plain HTTP. Colima must be told to trust it:
-
-```yaml
-# ~/.colima/default/colima.yaml
-docker:
-  insecure-registries:
-    - 192.168.1.93:5000
+```bash
+# From the repo root on the dev host (or via SSH with REPO_ROOT set):
+./scripts/setup-dev-host.sh
 ```
 
-After editing: `colima restart`
+After running, two items still require manual action on the **calling machine**:
 
-Verify: `DOCKER_HOST=ssh://USER@HOST_ADDR docker info | grep -A5 'Insecure Registries'`
-
-**2. SSH key**
-
-The calling machine's SSH key must be in `~/.ssh/authorized_keys` on the dev host. Colima's Docker daemon is accessed via `DOCKER_HOST=ssh://USER@HOST_ADDR` — no special Docker socket exposure is needed.
+**1. SSH key** — the calling machine's key must be in `~/.ssh/authorized_keys` on the dev host. The setup script prints the host public key and instructions.
 
 Verify: `DOCKER_HOST=ssh://USER@HOST_ADDR docker ps`
+
+**2. Insecure registry on calling machine** — if the calling machine is also doing `docker push` to `192.168.1.93:5000`, add the registry to its own Docker daemon's insecure-registries. The dev host's Colima config is handled by the setup script.
 
 ### 3.3 Slot Response Fields Used by This Workflow
 
@@ -240,7 +232,7 @@ The smoke test should complete in under 30 seconds on a healthy fleet. 300 secon
 
 ## 7. Open Questions
 
-- [ ] **Colima insecure-registry one-time setup** — currently a manual step documented here. Should it be automated via an agent-side config check or a setup script? Impact: friction for new dev hosts joining the fleet. Owner: ops decision.
+- [x] **Colima insecure-registry one-time setup** — resolved: `scripts/setup-dev-host.sh` handles this automatically. See `specs/dev-host-setup-v0.1.md`.
 - [ ] **Multi-port mapping example** — §3.6 describes the pattern but no concrete example exists yet. Should `examples/` include a multi-service Compose variant? Impact: callers building real workloads have no template. Owner: future example.
 - [ ] **Windows/Docker Desktop support** — `DOCKER_HOST=ssh://` behaves differently on Docker Desktop for Mac vs Colima. This workflow is tested only with Colima. Owner: if non-Colima hosts are added to the fleet.
 
