@@ -1,0 +1,7 @@
+# Agent dependencies (install on each monitored host)
+psutil>=5.9.0
+pyyaml>=6.0
+
+# Optional: NVIDIA GPU monitoring
+# pip install nvidia-ml-py
+# (package name is 'nvidia-ml-py', import name is 'pynvml')

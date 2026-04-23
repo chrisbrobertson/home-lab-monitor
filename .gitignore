@@ -1,0 +1,24 @@
+# Runtime data
+metrics.db
+metrics.db-shm
+metrics.db-wal
+
+# Real config (contains LAN IPs)
+config.yml
+agent-config.yml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# macOS
+.DS_Store

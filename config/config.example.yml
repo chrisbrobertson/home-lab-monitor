@@ -1,0 +1,73 @@
+# Home Lab Monitor - Configuration
+# Copy this file to config.yml and edit to match your environment.
+
+server:
+  port: 8888           # Dashboard port
+
+# Docker image registry (optional — enables /api/capabilities registry info)
+# Point this at a Docker Distribution (registry:2) instance on your LAN.
+registry:
+  host: "192.168.1.10"   # Host running the registry container
+  port: 5000              # Default Docker Distribution port
+  scheme: "http"          # http for insecure LAN registries
+
+# Slot reservation policy (optional — governs POST /api/slots)
+slot_policy:
+  max_slots_per_host: 4       # Max concurrent reserved slots per Docker host
+  default_ttl_seconds: 3600   # Slot TTL if caller doesn't specify (1 hour)
+  port_base: 20000            # First port in the allocated range
+  port_stride: 10             # Ports reserved per slot (base + offset*stride)
+  max_port_offsets: 50        # Total slots the port range can accommodate
+
+hosts:
+  - name: "AI Server"
+    address: "192.168.1.10"
+    port: 9100          # Agent port (default 9100)
+    docker: true        # true = eligible for slot reservations
+    max_slots: 4        # Max slots for this host (defaults to slot_policy max)
+    ssh_user: "ubuntu"  # Used only if you SSH to this host manually
+
+  - name: "NAS"
+    address: "192.168.1.20"
+    port: 9100
+    docker: false
+
+  - name: "Workstation"
+    address: "192.168.1.30"
+    port: 9100
+    docker: true
+    max_slots: 2
+    ssh_user: "chris"
+
+# ---
+# The following goes in the AGENT's config.yml on each host
+# (the agent and server can share one config if co-located)
+
+# Agent port (must match 'port' in the server's hosts list)
+# port: 9100
+
+# Services to monitor on THIS host
+# services:
+#   - name: "Ollama"
+#     type: systemd       # systemd | port | http | process
+#     unit: ollama        # systemd unit name
+
+#   - name: "OpenHands"
+#     type: port
+#     port: 3000
+
+#   - name: "ComfyUI"
+#     type: port
+#     port: 8188
+
+#   - name: "vLLM"
+#     type: port
+#     port: 8000
+
+#   - name: "Plex"
+#     type: http
+#     url: "http://localhost:32400/web"
+
+#   - name: "Portainer"
+#     type: http
+#     url: "http://localhost:9000"

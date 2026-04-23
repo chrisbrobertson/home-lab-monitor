@@ -1,0 +1,16 @@
+[Unit]
+Description=Home Lab Monitor - Server
+After=network.target
+
+[Service]
+Type=simple
+User=nobody
+WorkingDirectory=/opt/home-lab-monitor/server
+Environment="CONFIG_PATH=/opt/home-lab-monitor/config/config.yml"
+Environment="DB_PATH=/var/lib/home-lab-monitor/metrics.db"
+ExecStart=/opt/home-lab-monitor/venv/bin/python server.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

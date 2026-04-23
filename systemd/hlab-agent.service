@@ -1,0 +1,18 @@
+[Unit]
+Description=Home Lab Monitor - Agent
+After=network.target
+
+[Service]
+Type=simple
+User=nobody
+WorkingDirectory=/opt/home-lab-monitor/agent
+ExecStart=/opt/home-lab-monitor/venv/bin/python agent.py /opt/home-lab-monitor/config/config.yml
+Restart=always
+RestartSec=10
+
+# Permissions needed for systemd service checks
+# If using 'type: systemd' service checks, run as a user with systemctl read access
+# User=homelab-monitor
+
+[Install]
+WantedBy=multi-user.target
