@@ -2,7 +2,7 @@
 openapi: "3.0"
 info:
   title: "Slot Reservation, Image Registry, and Capabilities API"
-  version: "0.2"
+  version: "0.3"
   status: "draft"
   authors: []
   updated: "2026-04-22"
@@ -24,7 +24,7 @@ This spec governs:
 
 - The `GET /api/capabilities` endpoint: fleet-wide slot availability, registry location, and per-host load derived from live monitoring data
 - The slot CRUD endpoints: `POST /api/slots`, `GET /api/slots`, `GET /api/slots/{slot_id}`, `DELETE /api/slots/{slot_id}`, `POST /api/slots/{slot_id}/heartbeat`
-- The `GET /api/agent-guide` endpoint: a single human- and AI-agent-readable Markdown document describing what the service offers and how to use it
+- The AI-agent-facing usage guide: a single human- and AI-agent-readable Markdown document describing what the service offers and how to use it. As of v0.3 this lives in the **Agent API guide** section of `README.md`, not at a dedicated endpoint.
 - The slot model: ID, host assignment, port offset, compose project name, TTL, expiry
 - Slot placement policy: how a host is chosen, load gating using live metrics, capacity limits
 - The `slots` and `slot_port_assignments` SQLite tables
@@ -383,126 +383,31 @@ If omitted, `default_ttl_seconds` is used.
 
 ---
 
-#### `GET /api/agent-guide`
+#### Agent usage guide (in `README.md`, not an endpoint)
 
-Returns a single self-contained Markdown document that an AI agent or automation client can fetch at startup to learn what this service provides and how to use it. The response is designed to be read directly — no further documentation lookup required for the common workflow.
+> **v0.3 change:** the previous `GET /api/agent-guide` endpoint and `server/agent_guide.md.tmpl` template have been removed. The full AI-agent-facing usage guide now lives in the **Agent API guide** section of `README.md` — that file is the single source of truth for callers (human or AI).
 
-The document covers:
+The guide must cover:
 
 1. A one-paragraph description of what the service does and who should call it
-2. The base URL and request format (JSON bodies, no auth)
+2. The base URL pattern (`http://<server>:<port>/api/...`) and request format (JSON bodies, no auth)
 3. The typical workflow: discover → reserve → use → heartbeat → release
 4. A concise reference for each endpoint (method, path, one-line purpose)
 5. How to interpret `/api/capabilities` output (eligibility rules, load thresholds)
-6. Port range semantics — what the slot's `port_range_start`/`port_range_end` mean and how to map services into it
+6. Port range semantics — what `port_range_start` means and how to map services into the `port_stride` window
 7. SSH access pattern — `DOCKER_HOST=ssh://<ssh_user>@<host_address>`
 8. Registry usage — plain HTTP, tag format, insecure-registry requirement
 9. Error handling — `409` (no host), `404` (reaped or unknown), `422` (validation)
-10. A live pointer to the current slot-policy values and registry URL, fetched at request time so the guide reflects the deployed configuration (not hardcoded defaults)
-11. A link to the full spec (`specs/slot-registry-and-cc-v0.1.md`) for callers that need the complete contract
+10. A pointer to `/api/capabilities` for live config values (registry URL, current `slot_policy`) so the guide itself does not need to be regenerated when config changes
+11. A link to this spec (`specs/slot-registry-and-cc-v0.1.md`) for callers that need the complete contract
 
-**Content negotiation:**
+**Why a static README section instead of a dynamic endpoint?**
 
-- `Accept: text/markdown` (default) — returns `text/markdown; charset=utf-8`, body is the Markdown document
-- `Accept: application/json` — returns `application/json` with the envelope:
-  ```json
-  {
-    "format": "markdown",
-    "version": "0.1",
-    "updated_at": 1745349600,
-    "body": "<full markdown document as a single string>"
-  }
-  ```
+The original v0.2 design rendered the guide from a template at server startup so that values like `default_ttl_seconds` and the registry URL were always live. In practice this added a code path (template + render + content-negotiated route) for a document that is read by humans far more often than by agents, and AI callers (Claude Code, etc.) already prefer to read `README.md` directly from the repo. Live config values are still discoverable at request time via `/api/capabilities` — the guide simply documents the example-config defaults and points there.
 
-Both representations carry the same content. The Markdown form is the primary representation; the JSON envelope exists for clients that prefer a structured wrapper (e.g., for embedding in tool-call responses).
+<!-- removed: example response body (abridged) -->
 
-**Response `200 OK`** — always. The endpoint has no error modes under normal operation. If the registry or hosts cannot be reached, the guide still renders — it describes the contract, not the live state. Callers who need live state call `/api/capabilities`.
-
-**Caching:** responses include `Cache-Control: public, max-age=300`. The document is largely static; values interpolated from config change only when the server is reconfigured and restarted.
-
-**Example response body (abridged):**
-
-```markdown
-# Home Lab Monitor — Slot Reservation Service
-
-You are an AI agent or automation client. This service lets you reserve
-isolated Docker Compose slots on a local-network compute fleet, discover
-where to push Docker images, and release slots when done.
-
-## Base URL
-
-All endpoints are under `http://<this-host>:<port>/api/`. JSON request
-and response bodies. No authentication.
-
-## Typical Workflow
-
-1. `GET /api/capabilities` — inspect the fleet. Hosts with `eligible: true`
-   can currently accept a slot.
-2. `POST /api/slots` with `{"caller": "<your-agent-id>"}` — reserve one.
-   The response contains everything you need to orchestrate containers.
-3. Use `host_address` with `ssh_user` for `DOCKER_HOST=ssh://...`.
-   Use `compose_project` as your `-p` flag on every compose command.
-   Use ports in the range `[port_range_start, port_range_end]`.
-   Push and pull images from `registry_url`.
-4. Heartbeat every 2 hours (well inside the 4-hour default TTL) via
-   `POST /api/slots/{slot_id}/heartbeat`. If you skip this, your slot
-   will be reaped and your containers orphaned.
-5. When done, `DELETE /api/slots/{slot_id}`. Tear down your containers
-   yourself — the server does not stop them.
-
-## Endpoints
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | /api/capabilities | Current fleet state, registry status, per-host load |
-| POST | /api/slots | Reserve a slot |
-| GET | /api/slots | List active slots |
-| GET | /api/slots/{id} | Inspect one slot |
-| DELETE | /api/slots/{id} | Release a slot |
-| POST | /api/slots/{id}/heartbeat | Extend TTL |
-| GET | /api/agent-guide | This document |
-
-## Port Range
-
-Your slot owns `ports_per_slot` consecutive ports (currently {ports_per_slot}).
-Map your services to any ports in `[port_range_start, port_range_end]`.
-Ports outside this range are reserved for other slots — do not use them.
-
-## Registry
-
-URL: `{registry_url}`  (plain HTTP, no auth, no TLS)
-
-Tag format: `{registry_url}/<your-project>/<service>:<tag>`
-
-Before pushing or pulling, add `{registry_url}` to your Docker daemon's
-`insecure-registries` list. On Colima: edit `~/.colima/default/colima.yaml`
-under `docker.insecure-registries`.
-
-## Error Handling
-
-- `409` from `POST /api/slots` — no eligible host right now. Read the
-  `detail` field for specifics (over-capacity, over-load, all offline).
-  Retry after a delay or relax `host_hint`.
-- `404` from `POST /api/slots/{id}/heartbeat` — your slot was reaped.
-  Reserve a new one; your old containers must be torn down manually.
-- `422` — your request violates a policy (e.g. `ttl_seconds` exceeds
-  the configured maximum of {max_ttl_seconds} seconds).
-
-## Current Configuration
-
-Poll interval: {poll_interval}s
-Default slot TTL: {default_ttl_seconds}s
-Max slot TTL: {max_ttl_seconds}s
-Placement thresholds: CPU ≤ {cpu_threshold}%, Memory ≤ {memory_threshold}%
-
-## Full Specification
-
-For the complete contract (slot object schema, placement algorithm,
-SQLite schema, rationale) see `specs/slot-registry-and-cc-v0.1.md`
-in the home-lab-monitor repo.
-```
-
-Placeholders in `{braces}` are substituted from `config.yml` and the derived registry URL at request time. The implementation reads these values once at server startup and caches them; no per-request config reload.
+The former v0.2 example response body has been removed; see `README.md` § "Agent API guide" for the canonical wording.
 
 ## 4. Schema / Interface Definition
 
@@ -635,8 +540,8 @@ DOCKER_HOST=ssh://$SSH_USER@$HOST_ADDR docker compose -p $PROJECT up -d
 8. **The registry health check in `/api/capabilities` must be non-blocking.** Use an async HTTP GET with a short timeout (2 s). If it fails, return `"status": "offline"` — do not fail the capabilities response.
 9. **No new Python dependencies may be added.** The slot API is implemented within the existing FastAPI + SQLite stack. No Redis, no task queue, no additional packages.
 10. **Monitoring-only hosts (docker: false or max_slots: 0) must never appear as placement candidates.** They appear in the capabilities response for visibility but with `"eligible": false`.
-11. **The `/api/agent-guide` response must stay in sync with the live API.** When an endpoint is added, removed, or changes its request/response shape, the guide template must be updated in the same commit. A stale guide mis-directs AI callers and is worse than no guide at all. The template lives alongside the route handler (e.g. `server/agent_guide.md.tmpl`) and is rendered with the current config at request time.
-12. **The agent guide must not leak secrets or internal hostnames beyond what `/api/capabilities` already exposes.** It is reachable by anything on the LAN; treat its content as public within the trust boundary of the monitoring network.
+11. **The README's Agent API guide section must stay in sync with the live API.** When an endpoint is added, removed, or changes its request/response shape, the README section must be updated in the same commit. A stale guide mis-directs AI callers and is worse than no guide at all.
+12. **The agent guide must not leak secrets or internal hostnames beyond what `/api/capabilities` already exposes.** Although it is now a static document in the repo, the same constraint applies — the guide is shipped with the open-source code and treated as public within the trust boundary of the monitoring network.
 
 ## 6. Rationale
 
@@ -681,5 +586,6 @@ The poll loop already runs on a predictable interval. A separate `asyncio.create
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.3 | 2026-04-22 | Remove `GET /api/agent-guide` endpoint and `server/agent_guide.md.tmpl`. Agent usage guide moved to the **Agent API guide** section of `README.md` (single source of truth, no template render path). §1 scope, §3.6, and constraints #11–#12 updated accordingly. Live config values still discoverable via `/api/capabilities`. |
 | 0.2 | 2026-04-22 | §3.6 add `GET /api/agent-guide` endpoint — self-contained Markdown runbook for AI agents; content-negotiated JSON envelope; constraint to keep template in sync with the API |
 | 0.1 | 2026-04-22 | Initial draft — slot reservation API, capabilities endpoint, registry integration, SQLite schema, reaper, and Meridian caller integration map |

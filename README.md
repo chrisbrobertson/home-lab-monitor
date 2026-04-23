@@ -97,36 +97,135 @@ Open `http://localhost:8888` in your browser.
 | `GET` | `/api/slots/{id}` | Get a specific slot |
 | `DELETE` | `/api/slots/{id}` | Release a slot |
 | `POST` | `/api/slots/{id}/heartbeat` | Extend a slot's TTL |
-| `GET` | `/api/agent-guide` | Markdown usage guide for AI agents |
 
-## Slot reservation workflow
+## Agent API guide
 
-Slots give AI agents or pipelines a reserved Docker Compose port range on a host:
+This section is the canonical guide for AI agents and automated callers. It describes how to discover host capacity, reserve a deployment slot, and release it when done.
 
-```bash
-# 1. Discover capacity
-curl http://localhost:8888/api/capabilities
+The values shown below (port `8888`, `default_ttl_seconds: 3600`, `port_base: 20000`, `port_stride: 10`, `poll_interval: 60s`) are the defaults from `config/config.example.yml`. For live values from a running server, fetch `/api/capabilities` — it returns the actual `slot_policy` and registry URL in use.
 
-# 2. Reserve a slot
-curl -X POST http://localhost:8888/api/slots \
-  -H 'Content-Type: application/json' \
-  -d '{"caller": "my-agent", "label": "experiment-1", "ttl_seconds": 3600}'
+### 1. Discover available capacity
 
-# 3. Deploy on host_address:port_range_start
-# 4. Heartbeat while running
-curl -X POST http://localhost:8888/api/slots/<id>/heartbeat \
-  -H 'Content-Type: application/json' \
-  -d '{"ttl_seconds": 3600}'
-
-# 5. Release when done
-curl -X DELETE http://localhost:8888/api/slots/<id>
+```
+GET http://<server>:8888/api/capabilities
 ```
 
-For the full guide (intended for AI agent consumption):
+Returns per-host availability (online status, load, free slots) and registry info.
 
-```bash
-curl http://localhost:8888/api/agent-guide
+**Response shape:**
+```json
+{
+  "hosts": [
+    {
+      "name": "string",
+      "online": true,
+      "docker_enabled": true,
+      "active_slots": 0,
+      "max_slots": 4,
+      "free_slots": 4,
+      "cpu_percent": 12.3,
+      "mem_percent": 41.0
+    }
+  ],
+  "registry": {
+    "url": "http://host:5000",
+    "healthy": true,
+    "repository_count": 7,
+    "repositories": ["myapp", "myapp-worker"]
+  },
+  "slot_policy": {
+    "default_ttl_seconds": 3600,
+    "port_base": 20000,
+    "port_stride": 10
+  }
+}
 ```
+
+### 2. Reserve a slot
+
+```
+POST http://<server>:8888/api/slots
+Content-Type: application/json
+```
+
+**Request body:**
+```json
+{
+  "caller": "my-agent-id",
+  "label": "my-experiment",
+  "ttl_seconds": 3600,
+  "host_hint": "AI Server"
+}
+```
+
+- `caller` (required) — unique ID for your agent or pipeline run
+- `label` (optional) — human-readable tag for the reservation
+- `ttl_seconds` (optional) — slot lifetime; defaults to `slot_policy.default_ttl_seconds` (3600s in the example config)
+- `host_hint` (optional) — prefer a specific host by name
+
+**Response (201):**
+```json
+{
+  "id": "a1b2c3d4",
+  "host": "AI Server",
+  "host_address": "192.168.1.10",
+  "port_base": 20000,
+  "port_offset": 2,
+  "port_range_start": 20020,
+  "expires_ts": 1234567890,
+  "expires_in_seconds": 3600
+}
+```
+
+`port_range_start = port_base + port_offset * port_stride`
+
+Map your container's host ports starting from `port_range_start` (you have `port_stride` ports available in this slot — 10 in the example config).
+
+### 3. Extend a slot (heartbeat)
+
+Send a heartbeat before the slot expires to extend its TTL:
+
+```
+POST http://<server>:8888/api/slots/{id}/heartbeat
+Content-Type: application/json
+
+{"ttl_seconds": 3600}
+```
+
+### 4. Release a slot
+
+```
+DELETE http://<server>:8888/api/slots/{id}
+```
+
+Always release your slot when done. Unreleased slots expire after TTL.
+
+### 5. List active slots
+
+```
+GET http://<server>:8888/api/slots
+GET http://<server>:8888/api/slots?host=AI+Server
+```
+
+### 6. Check a specific slot
+
+```
+GET http://<server>:8888/api/slots/{id}
+```
+
+### Quick-start workflow
+
+1. `GET /api/capabilities` — find a host with `free_slots > 0`
+2. `POST /api/slots` — reserve a slot, capture `id` and `port_range_start`
+3. Deploy your container using ports `port_range_start` through `port_range_start + port_stride - 1` on `host_address`
+4. `POST /api/slots/{id}/heartbeat` — extend TTL while running
+5. `DELETE /api/slots/{id}` — release when done
+
+### Notes
+
+- Slots without heartbeats expire automatically after TTL.
+- The reaper runs each poll cycle (`POLL_INTERVAL`, 60s by default).
+- Image pull: `docker pull <registry_url>/<image>:<tag>` — get `registry_url` from `/api/capabilities`.
 
 ## Service check types
 

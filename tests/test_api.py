@@ -1,6 +1,5 @@
 """Integration tests for server API endpoints via httpx.AsyncClient + ASGITransport."""
 import os
-import string
 import sys
 import time
 from pathlib import Path
@@ -41,26 +40,10 @@ def seeded_db(minimal_config, tmp_path):
 def patched_server(seeded_db, minimal_config, monkeypatch):
     """Patch module-level globals in server so tests don't need a running process."""
     import server as srv
-    from config import load_server_config
 
     monkeypatch.setattr(srv, "CONFIG_PATH", minimal_config)
     monkeypatch.setattr(srv, "_db", seeded_db)
     monkeypatch.setattr(srv, "_registry_client", None)
-
-    cfg = load_server_config(minimal_config)
-    sp = cfg.slot_policy
-    tmpl_path = Path(__file__).parent.parent / "server" / "agent_guide.md.tmpl"
-    guide = ""
-    if tmpl_path.exists():
-        guide = string.Template(tmpl_path.read_text()).substitute(
-            server_url=f"http://0.0.0.0:{cfg.server_port}",
-            poll_interval=cfg.poll_interval,
-            registry_url="(not configured)",
-            default_ttl=sp.default_ttl_seconds,
-            port_base=sp.port_base,
-            port_stride=sp.port_stride,
-        )
-    monkeypatch.setattr(srv, "_agent_guide_md", guide)
 
     return srv
 
@@ -264,33 +247,3 @@ async def test_delete_missing_slot(patched_server):
     ) as client:
         r = await client.delete("/api/slots/notexist")
     assert r.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_agent_guide_markdown(patched_server):
-    import httpx
-    from httpx import ASGITransport
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=patched_server.app), base_url="http://test"
-    ) as client:
-        r = await client.get("/api/agent-guide")
-    assert r.status_code == 200
-    assert "text/markdown" in r.headers["content-type"]
-    assert "slot" in r.text.lower()
-
-
-@pytest.mark.asyncio
-async def test_agent_guide_json(patched_server):
-    import httpx
-    from httpx import ASGITransport
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=patched_server.app), base_url="http://test"
-    ) as client:
-        r = await client.get(
-            "/api/agent-guide",
-            headers={"accept": "application/json"},
-        )
-    assert r.status_code == 200
-    data = r.json()
-    assert "guide" in data
-    assert "format" in data
