@@ -2,7 +2,7 @@
 openapi: "3.0"
 info:
   title: "Home Lab Monitor — Architecture Spec"
-  version: "0.1"
+  version: "0.2"
   status: "draft"
   authors: []
   updated: "2026-04-22"
@@ -136,7 +136,8 @@ The agent outputs a flat JSON object at `GET /metrics`. This is the API contract
     {
       "name": "<string>",
       "up": "<boolean>",
-      "type": "<string: systemd | port | http | process>"
+      "type": "<string: systemd | port | http | process | colima | ollama>",
+      "detail": "<string | omitted>"
     }
   ]
 }
@@ -148,6 +149,9 @@ The agent outputs a flat JSON object at `GET /metrics`. This is the API contract
 - `io` rates (`read_mbps`, `write_mbps`, `recv_mbps`, `sent_mbps`) are `0.0` on the first request because rate calculation requires two samples.
 - A GPU entry may have an `"error"` key instead of the normal fields if NVML returns an error for that device index.
 - `disk` excludes pseudo-filesystems: `tmpfs`, `devtmpfs`, `squashfs`, `overlay`, `proc`, `sysfs`.
+- `services[].detail` is omitted when null. Currently populated only by the `ollama` check type (comma-separated active model names).
+- `colima` check type runs `colima status` and trusts the exit code; no NVML or container daemon required on the agent host.
+- `ollama` check type issues `GET /api/ps` (default `http://localhost:11434/api/ps`); the response `models[].name` list is joined into `detail`.
 
 ### 3.3 Server API Surface
 
@@ -160,7 +164,18 @@ The agent outputs a flat JSON object at `GET /metrics`. This is the API contract
 | `GET` | `/api/metrics/{host}/latest` | Latest snapshot for a single host |
 | `GET` | `/api/metrics/{host}/history` | Up to 1440 data points (24h) for a single host, oldest-first |
 
-The dashboard uses `/api/summary` for the main view and `/api/metrics/{host}/history` for the detail chart view.
+The dashboard fetches `/api/summary`, `/api/config`, `/api/slots`, and `/api/capabilities` in parallel on each refresh. `/api/config` includes `role`, `docker`, and `ssh_user` per host; these drive grouping and panel rendering. `/api/capabilities` includes `role` per host alongside slot capacity fields.
+
+The dashboard groups hosts by `role` into sections: **Server**, **LLM Servers**, **Dev Hosting**, **Other**. Each section renders role-specific panels in addition to the standard metrics body:
+
+| Role | Extra panels |
+| --- | --- |
+| `server` | All-slots registry (all active slots fleet-wide with Release buttons) |
+| `llm-server` | Active Models (from `ollama` service `detail`); per-host slot list if `docker: true` |
+| `dev-laptop` | Per-host slot list with slot count/capacity and Release buttons |
+| `monitor` | Standard metrics only |
+
+The `DELETE /api/slots/{id}` endpoint is used by the Release buttons in all slot panels.
 
 ### 3.4 Storage Model
 
@@ -227,3 +242,4 @@ CREATE INDEX idx_host_ts ON metrics (host, ts);
 | Version | Date | Summary |
 | --- | --- | --- |
 | 0.1 | 2026-04-22 | Initial draft — documents existing implementation |
+| 0.2 | 2026-04-22 | Add `role` field to host config and API responses; add `colima` and `ollama` service check types with optional `detail` field; role-grouped dashboard with slot registry, active models, and per-host slot panels |

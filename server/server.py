@@ -12,7 +12,6 @@ import asyncio
 import hashlib
 import json
 import os
-import string
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -38,34 +37,11 @@ POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", 60))
 _db: Database = None
 _slot_lock = asyncio.Lock()
 _registry_client = None
-_agent_guide_md: str = ""
 _last_reap_ts: float = 0.0
 
 
 def load_config() -> dict:
     return load_raw(CONFIG_PATH)
-
-
-# ---------------------------------------------------------------------------
-# Agent guide rendering
-# ---------------------------------------------------------------------------
-
-def _render_agent_guide(server_cfg) -> str:
-    tmpl_path = Path(__file__).parent / "agent_guide.md.tmpl"
-    if not tmpl_path.exists():
-        return "# Agent guide template not found"
-    tmpl = string.Template(tmpl_path.read_text())
-    sp = server_cfg.slot_policy
-    registry_url = server_cfg.registry.url if server_cfg.registry else "(not configured)"
-    server_url = f"http://0.0.0.0:{server_cfg.server_port}"
-    return tmpl.substitute(
-        server_url=server_url,
-        poll_interval=server_cfg.poll_interval,
-        registry_url=registry_url,
-        default_ttl=sp.default_ttl_seconds,
-        port_base=sp.port_base,
-        port_stride=sp.port_stride,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -118,13 +94,12 @@ async def polling_loop(db: Database):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _db, _registry_client, _agent_guide_md
+    global _db, _registry_client
     _db = Database(DB_PATH)
     _db.init()
 
     server_cfg = load_server_config(CONFIG_PATH)
     _registry_client = make_registry_client(server_cfg.registry)
-    _agent_guide_md = _render_agent_guide(server_cfg)
 
     task = asyncio.create_task(polling_loop(_db))
     yield
@@ -156,7 +131,14 @@ def api_config():
     config = load_config()
     return JSONResponse({
         "hosts": [
-            {"name": h["name"], "address": h["address"], "port": h.get("port", 9100)}
+            {
+                "name": h["name"],
+                "address": h["address"],
+                "port": h.get("port", 9100),
+                "role": h.get("role", "monitor"),
+                "docker": h.get("docker", False),
+                "ssh_user": h.get("ssh_user", ""),
+            }
             for h in config.get("hosts", [])
         ],
         "poll_interval": POLL_INTERVAL,
@@ -208,6 +190,7 @@ async def api_capabilities():
         hosts_out.append({
             "name": hcfg.name,
             "address": hcfg.address,
+            "role": hcfg.role,
             "online": online,
             "docker_enabled": hcfg.docker,
             "active_slots": active,
@@ -365,21 +348,6 @@ async def api_heartbeat(slot_id: str, request: Request):
 
     slot = _db.get_slot(slot_id)
     return JSONResponse(_slot_response(slot, server_cfg))
-
-
-# ---------------------------------------------------------------------------
-# Agent guide
-# ---------------------------------------------------------------------------
-
-@app.get("/api/agent-guide")
-def api_agent_guide(request: Request):
-    accept = request.headers.get("accept", "")
-    if "application/json" in accept:
-        return JSONResponse({"guide": _agent_guide_md, "format": "markdown"})
-    return JSONResponse(
-        content=_agent_guide_md,
-        media_type="text/markdown; charset=utf-8",
-    )
 
 
 # ---------------------------------------------------------------------------

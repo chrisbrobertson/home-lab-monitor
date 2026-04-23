@@ -181,8 +181,10 @@ def get_gpu():
     return gpus
 
 
-def check_service(svc):
+def check_service(svc) -> dict:
     svc_type = svc.get("type", "systemd")
+    up = False
+    detail = None
     try:
         if svc_type == "systemd":
             unit = svc.get("unit", svc["name"])
@@ -190,39 +192,58 @@ def check_service(svc):
                 ["systemctl", "is-active", "--quiet", unit],
                 timeout=5, capture_output=True
             )
-            return result.returncode == 0
+            up = result.returncode == 0
 
         elif svc_type == "port":
             host = svc.get("host", "127.0.0.1")
             port = int(svc["port"])
             with socket.create_connection((host, port), timeout=3):
-                return True
+                up = True
 
         elif svc_type == "http":
             url = svc.get("url", f"http://localhost:{svc.get('port', 80)}")
             urlopen(url, timeout=5)
-            return True
+            up = True
 
         elif svc_type == "process":
             name = svc.get("process", svc["name"]).lower()
             for proc in psutil.process_iter(["name"]):
                 if name in proc.info["name"].lower():
-                    return True
-            return False
+                    up = True
+                    break
+
+        elif svc_type == "colima":
+            result = subprocess.run(
+                ["colima", "status"], timeout=5, capture_output=True
+            )
+            up = result.returncode == 0
+
+        elif svc_type == "ollama":
+            url = svc.get("url", "http://localhost:11434/api/ps")
+            resp = urlopen(url, timeout=5)
+            data = json.loads(resp.read())
+            models = [m["name"] for m in data.get("models", [])]
+            up = True
+            detail = ", ".join(models) if models else "no active models"
 
     except Exception:
-        return False
-    return False
+        pass
+
+    return {"up": up, "detail": detail}
 
 
 def get_services(config):
     result = []
     for svc in config.get("services", []):
-        result.append({
+        check = check_service(svc)
+        entry = {
             "name": svc["name"],
-            "up": check_service(svc),
+            "up": check["up"],
             "type": svc.get("type", "systemd"),
-        })
+        }
+        if check["detail"] is not None:
+            entry["detail"] = check["detail"]
+        result.append(entry)
     return result
 
 

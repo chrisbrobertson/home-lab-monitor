@@ -15,6 +15,7 @@
       --green:    #40c057;
       --yellow:   #fab005;
       --red:      #fa5252;
+      --purple:   #cc5de8;
       --text:     #e0e4f0;
       --muted:    #7a82a8;
       --radius:   10px;
@@ -22,7 +23,6 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
 
-    /* Header */
     header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--border);
@@ -40,15 +40,20 @@
     #refresh-btn:hover { opacity: 0.85; }
     #countdown { color: var(--muted); font-size: 12px; min-width: 80px; text-align: right; }
 
-    /* Main layout */
-    main { padding: 24px; }
-    #hosts-grid {
+    main { padding: 24px; display: flex; flex-direction: column; gap: 32px; }
+
+    .role-section { display: flex; flex-direction: column; gap: 14px; }
+    .role-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.2px; color: var(--muted);
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .hosts-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
       gap: 20px;
     }
 
-    /* Host card */
     .host-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
       overflow: hidden; transition: border-color 0.2s;
@@ -63,7 +68,7 @@
     }
     .card-header:hover { background: var(--surface2); }
     .host-title { display: flex; align-items: center; gap: 10px; }
-    .host-title .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     .dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
     .dot.offline { background: var(--red); }
     .host-name { font-weight: 600; font-size: 15px; }
@@ -71,13 +76,10 @@
     .expand-icon { color: var(--muted); font-size: 18px; transition: transform 0.2s; }
     .host-card.expanded .expand-icon { transform: rotate(180deg); }
 
-    /* Metrics body */
     .card-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
 
-    /* Section labels */
     .section-label { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; }
 
-    /* Metric rows */
     .metric-row { display: flex; align-items: center; gap: 10px; }
     .metric-name { color: var(--muted); min-width: 90px; font-size: 13px; }
     .bar-wrap { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
@@ -86,30 +88,64 @@
     .bar-fill.danger { background: var(--red); }
     .metric-val { min-width: 58px; text-align: right; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
 
-    /* Disk grid */
     .disk-grid { display: flex; flex-direction: column; gap: 6px; }
 
-    /* GPU block */
     .gpu-block { background: var(--surface2); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
     .gpu-name { font-size: 12px; color: var(--muted); }
 
-    /* Services */
     .services-row { display: flex; flex-wrap: wrap; gap: 8px; }
     .svc-badge {
       display: flex; align-items: center; gap: 5px;
       padding: 4px 10px; border-radius: 20px;
-      background: var(--surface2); font-size: 12px; font-weight: 500;
+      background: var(--surface2); border: 1px solid transparent;
+      font-size: 12px; font-weight: 500;
     }
-    .svc-badge .svc-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .svc-dot { width: 7px; height: 7px; border-radius: 50%; }
     .svc-badge.up .svc-dot { background: var(--green); }
     .svc-badge.down { color: var(--red); }
     .svc-badge.down .svc-dot { background: var(--red); }
+    .svc-badge.colima-badge.up { border-color: var(--green); }
+    .svc-badge.colima-badge.down { border-color: var(--red); }
 
-    /* IO stats */
     .io-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
     .io-stat { background: var(--surface2); border-radius: 6px; padding: 8px 10px; }
-    .io-stat .io-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .io-stat .io-val { font-size: 15px; font-weight: 600; margin-top: 2px; }
+    .io-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .io-val { font-size: 15px; font-weight: 600; margin-top: 2px; }
+
+    /* Models panel (LLM servers) */
+    .models-panel { border-top: 1px solid var(--border); padding: 10px 16px; display: flex; flex-direction: column; gap: 6px; }
+    .panel-title { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 2px; }
+    .model-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px; background: var(--surface2); border-radius: 6px;
+      font-size: 13px; font-weight: 500;
+    }
+    .model-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--purple); flex-shrink: 0; }
+    .panel-empty { color: var(--muted); font-size: 13px; font-style: italic; }
+
+    /* Slot panels */
+    .slots-panel { border-top: 1px solid var(--border); padding: 10px 16px; display: flex; flex-direction: column; gap: 6px; }
+    .slots-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+    .slots-capacity { font-size: 12px; }
+    .cap-active { color: var(--yellow); font-weight: 600; }
+    .cap-free { color: var(--green); font-weight: 600; }
+
+    .slot-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px; background: var(--surface2); border-radius: 6px;
+      font-size: 12px;
+    }
+    .slot-caller { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .slot-label { color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .slot-host-tag { color: var(--accent); font-size: 11px; white-space: nowrap; }
+    .slot-expires { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .slot-expires.expiring { color: var(--yellow); }
+    .btn-release {
+      background: transparent; border: 1px solid var(--red); color: var(--red);
+      border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 11px;
+      transition: background 0.15s; white-space: nowrap; flex-shrink: 0;
+    }
+    .btn-release:hover { background: var(--red); color: #fff; }
 
     /* History panel */
     .history-panel { display: none; padding: 14px 16px; border-top: 1px solid var(--border); gap: 16px; flex-direction: column; }
@@ -118,12 +154,10 @@
     .chart-wrap { position: relative; height: 120px; }
     .history-loading { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
 
-    /* Offline overlay */
     .offline-msg { color: var(--red); font-size: 13px; padding: 20px 0; text-align: center; }
 
-    /* Responsive */
     @media (max-width: 600px) {
-      #hosts-grid { grid-template-columns: 1fr; }
+      .hosts-grid { grid-template-columns: 1fr; }
       .io-stats { grid-template-columns: 1fr; }
     }
   </style>
@@ -138,16 +172,15 @@
     </div>
   </header>
 
-  <main>
-    <div id="hosts-grid"></div>
+  <main id="main-content">
+    <div style="color:var(--muted);text-align:center;padding:48px">Loading…</div>
   </main>
 
   <script>
     const POLL_INTERVAL_MS = 60000;
     let countdownTimer = null;
     let secondsLeft = 0;
-    const charts = {};         // host -> { cpu, mem, gpu, disk }
-    const historyLoaded = {};  // host -> bool
+    const charts = {};
 
     // -----------------------------------------------------------------------
     // Utilities
@@ -159,18 +192,13 @@
       return '';
     }
 
-    function fmt(v, unit = '%') {
-      if (v === null || v === undefined) return '—';
-      return `${v}${unit}`;
-    }
-
     function fmtGb(v) {
-      if (v === null || v === undefined) return '—';
+      if (v == null) return '—';
       return v >= 1 ? `${v.toFixed(1)} GB` : `${(v * 1024).toFixed(0)} MB`;
     }
 
     function fmtRate(mbps) {
-      if (mbps === null || mbps === undefined) return '—';
+      if (mbps == null) return '—';
       if (mbps >= 1000) return `${(mbps / 1000).toFixed(2)} GB/s`;
       return `${mbps.toFixed(2)} MB/s`;
     }
@@ -180,27 +208,93 @@
       const s = Math.round(Date.now() / 1000 - ts);
       if (s < 5) return 'just now';
       if (s < 60) return `${s}s ago`;
-      if (s < 3600) return `${Math.round(s/60)}m ago`;
-      return `${Math.round(s/3600)}h ago`;
+      if (s < 3600) return `${Math.round(s / 60)}m ago`;
+      return `${Math.round(s / 3600)}h ago`;
+    }
+
+    function fmtExpiry(sec) {
+      if (sec <= 0) return 'expired';
+      if (sec < 60) return `${sec}s`;
+      if (sec < 3600) return `${Math.round(sec / 60)}m`;
+      return `${(sec / 3600).toFixed(1)}h`;
     }
 
     function metricRow(label, pct, valStr) {
-      const cls = barClass(pct);
       return `
         <div class="metric-row">
           <span class="metric-name">${label}</span>
-          <div class="bar-wrap"><div class="bar-fill ${cls}" style="width:${Math.min(pct,100)}%"></div></div>
+          <div class="bar-wrap"><div class="bar-fill ${barClass(pct)}" style="width:${Math.min(pct, 100)}%"></div></div>
           <span class="metric-val">${valStr}</span>
         </div>`;
     }
 
     // -----------------------------------------------------------------------
-    // Render helpers
+    // Slot actions
     // -----------------------------------------------------------------------
 
-    function renderCard(name, data) {
+    async function reapSlot(id) {
+      try {
+        await fetch(`/api/slots/${id}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error('reap failed', e);
+      }
+      await refresh();
+    }
+
+    // -----------------------------------------------------------------------
+    // Slot panel renderers
+    // -----------------------------------------------------------------------
+
+    function slotRow(slot, showHost) {
+      const expSec = slot.expires_in_seconds;
+      const expClass = expSec < 300 ? 'expiring' : '';
+      const hostTag = showHost ? `<span class="slot-host-tag">${slot.host}</span>` : '';
+      const label = slot.label ? `<span class="slot-label">${slot.label}</span>` : '';
+      return `
+        <div class="slot-row">
+          <span class="slot-caller">${slot.caller}</span>
+          ${label}${hostTag}
+          <span class="slot-expires ${expClass}">${fmtExpiry(expSec)}</span>
+          <button class="btn-release" onclick="reapSlot('${slot.id}')">Release</button>
+        </div>`;
+    }
+
+    function allSlotsPanel(allSlots) {
+      const hdr = `
+        <div class="slots-panel-header">
+          <span class="panel-title">Slot Registry</span>
+          <span class="slots-capacity">${allSlots.length} active</span>
+        </div>`;
+      const body = allSlots.length
+        ? allSlots.map(s => slotRow(s, true)).join('')
+        : `<span class="panel-empty">No active slots</span>`;
+      return `<div class="slots-panel">${hdr}${body}</div>`;
+    }
+
+    function hostSlotsPanel(name, hostSlots, capInfo) {
+      const maxSlots = capInfo ? capInfo.max_slots : 0;
+      const free = capInfo ? capInfo.free_slots : 0;
+      const cap = maxSlots > 0
+        ? `<span class="slots-capacity"><span class="cap-active">${hostSlots.length}</span>/${maxSlots} · <span class="cap-free">${free} free</span></span>`
+        : '';
+      const hdr = `
+        <div class="slots-panel-header">
+          <span class="panel-title">Slots</span>${cap}
+        </div>`;
+      const body = hostSlots.length
+        ? hostSlots.map(s => slotRow(s, false)).join('')
+        : `<span class="panel-empty">No active slots</span>`;
+      return `<div class="slots-panel">${hdr}${body}</div>`;
+    }
+
+    // -----------------------------------------------------------------------
+    // Card body renderer (metrics, GPU, disk, IO, services)
+    // -----------------------------------------------------------------------
+
+    function metricsBody(data) {
       const online = data._online !== false;
-      const ts = data._ts;
+      if (!online) return `<div class="card-body"><div class="offline-msg">Host is unreachable</div></div>`;
+
       const cpu = data.cpu || {};
       const mem = data.memory || {};
       const disks = data.disk || [];
@@ -208,91 +302,113 @@
       const gpus = data.gpu || [];
       const services = data.services || [];
 
-      // CPU
-      let cpuSection = '';
-      if (online) {
-        const cpuPct = cpu.percent ?? 0;
-        const loadStr = cpu.load_avg_1m !== undefined
-          ? `${cpuPct}%  load ${cpu.load_avg_1m}/${cpu.load_avg_5m}/${cpu.load_avg_15m}`
-          : `${cpuPct}%`;
-        cpuSection = `
-          <div class="section-label">CPU &amp; Memory</div>
-          ${metricRow('CPU', cpuPct, loadStr)}
-          ${metricRow('Memory', mem.percent ?? 0, `${fmtGb(mem.used_gb)} / ${fmtGb(mem.total_gb)}`)}
-          ${mem.swap_total_gb > 0 ? metricRow('Swap', mem.swap_percent ?? 0, `${fmtGb(mem.swap_used_gb)} / ${fmtGb(mem.swap_total_gb)}`) : ''}
-        `;
-      }
+      const cpuPct = cpu.percent ?? 0;
+      const loadStr = cpu.load_avg_1m != null
+        ? `${cpuPct}%  load ${cpu.load_avg_1m}/${cpu.load_avg_5m}/${cpu.load_avg_15m}`
+        : `${cpuPct}%`;
 
-      // GPU
-      let gpuSection = '';
-      if (online && gpus.length > 0) {
-        const gpuItems = gpus.map(g => {
+      let html = `
+        <div class="section-label">CPU &amp; Memory</div>
+        ${metricRow('CPU', cpuPct, loadStr)}
+        ${metricRow('Memory', mem.percent ?? 0, `${fmtGb(mem.used_gb)} / ${fmtGb(mem.total_gb)}`)}
+        ${(mem.swap_total_gb > 0) ? metricRow('Swap', mem.swap_percent ?? 0, `${fmtGb(mem.swap_used_gb)} / ${fmtGb(mem.swap_total_gb)}`) : ''}
+      `;
+
+      if (gpus.length > 0) {
+        const gpuHtml = gpus.map(g => {
           if (g.error) return `<div class="gpu-block"><span class="gpu-name">GPU ${g.index}: error</span></div>`;
-          const powerStr = g.power_w !== null
-            ? `  ${g.power_w}W / ${g.power_limit_w}W` : '';
+          const pw = g.power_w != null ? `  ${g.power_w}W / ${g.power_limit_w}W` : '';
           return `
             <div class="gpu-block">
               <span class="gpu-name">${g.name}</span>
-              ${metricRow('GPU', g.util_percent ?? 0, `${g.util_percent}%  ${g.temp_c}°C${powerStr}`)}
+              ${metricRow('GPU', g.util_percent ?? 0, `${g.util_percent}%  ${g.temp_c}°C${pw}`)}
               ${metricRow('VRAM', g.mem_percent ?? 0, `${fmtGb(g.mem_used_gb)} / ${fmtGb(g.mem_total_gb)}`)}
             </div>`;
         }).join('');
-        gpuSection = `<div class="section-label">GPU</div>${gpuItems}`;
+        html += `<div class="section-label">GPU</div>${gpuHtml}`;
       }
 
-      // Disk
-      let diskSection = '';
-      if (online && disks.length > 0) {
-        const diskRows = disks
-          .filter(d => d.total_gb > 0)
-          .map(d => metricRow(d.mountpoint, d.percent, `${fmtGb(d.used_gb)} / ${fmtGb(d.total_gb)}`))
-          .join('');
-        diskSection = `<div class="section-label">Disk</div><div class="disk-grid">${diskRows}</div>`;
+      const realDisks = disks.filter(d => d.total_gb > 0);
+      if (realDisks.length > 0) {
+        html += `<div class="section-label">Disk</div><div class="disk-grid">`;
+        html += realDisks.map(d => metricRow(d.mountpoint, d.percent, `${fmtGb(d.used_gb)} / ${fmtGb(d.total_gb)}`)).join('');
+        html += `</div>`;
       }
 
-      // IO
-      let ioSection = '';
-      if (online && io.disk) {
-        ioSection = `
+      if (io.disk) {
+        html += `
           <div class="section-label">I/O</div>
           <div class="io-stats">
-            <div class="io-stat">
-              <div class="io-label">Disk Read</div>
-              <div class="io-val">${fmtRate(io.disk.read_mbps)}</div>
-            </div>
-            <div class="io-stat">
-              <div class="io-label">Disk Write</div>
-              <div class="io-val">${fmtRate(io.disk.write_mbps)}</div>
-            </div>
-            <div class="io-stat">
-              <div class="io-label">Net Recv</div>
-              <div class="io-val">${fmtRate(io.network?.recv_mbps)}</div>
-            </div>
-            <div class="io-stat">
-              <div class="io-label">Net Send</div>
-              <div class="io-val">${fmtRate(io.network?.sent_mbps)}</div>
-            </div>
+            <div class="io-stat"><div class="io-label">Disk Read</div><div class="io-val">${fmtRate(io.disk.read_mbps)}</div></div>
+            <div class="io-stat"><div class="io-label">Disk Write</div><div class="io-val">${fmtRate(io.disk.write_mbps)}</div></div>
+            <div class="io-stat"><div class="io-label">Net Recv</div><div class="io-val">${fmtRate(io.network?.recv_mbps)}</div></div>
+            <div class="io-stat"><div class="io-label">Net Send</div><div class="io-val">${fmtRate(io.network?.sent_mbps)}</div></div>
           </div>`;
       }
 
-      // Services
-      let svcSection = '';
-      if (online && services.length > 0) {
-        const badges = services.map(s =>
-          `<span class="svc-badge ${s.up ? 'up' : 'down'}">
+      if (services.length > 0) {
+        const badges = services.map(s => {
+          const isColima = s.type === 'colima';
+          return `<span class="svc-badge ${s.up ? 'up' : 'down'}${isColima ? ' colima-badge' : ''}">
             <span class="svc-dot"></span>${s.name}
-          </span>`
-        ).join('');
-        svcSection = `<div class="section-label">Services</div><div class="services-row">${badges}</div>`;
+          </span>`;
+        }).join('');
+        html += `<div class="section-label">Services</div><div class="services-row">${badges}</div>`;
       }
 
+      return `<div class="card-body">${html}</div>`;
+    }
+
+    // -----------------------------------------------------------------------
+    // Role-specific extra panels
+    // -----------------------------------------------------------------------
+
+    function modelsPanel(services) {
+      const svc = services.find(s => s.type === 'ollama');
+      if (!svc) return '';
+      let body;
+      if (!svc.up) {
+        body = `<span class="panel-empty">Ollama offline</span>`;
+      } else if (!svc.detail || svc.detail === 'no active models') {
+        body = `<span class="panel-empty">No active models</span>`;
+      } else {
+        body = svc.detail.split(', ')
+          .map(m => `<div class="model-item"><span class="model-dot"></span>${m}</div>`)
+          .join('');
+      }
+      return `<div class="models-panel"><div class="panel-title">Active Models</div>${body}</div>`;
+    }
+
+    function extraPanels(hostCfg, role, data, hostSlots, allSlots, capInfo) {
+      const services = (data && data.services) || [];
+      if (role === 'server') {
+        return allSlotsPanel(allSlots);
+      }
+      if (role === 'llm-server') {
+        const mp = modelsPanel(services);
+        const sp = hostCfg.docker ? hostSlotsPanel(hostCfg.name, hostSlots, capInfo) : '';
+        return mp + sp;
+      }
+      if (role === 'dev-laptop') {
+        return hostSlotsPanel(hostCfg.name, hostSlots, capInfo);
+      }
+      return '';
+    }
+
+    // -----------------------------------------------------------------------
+    // Full card
+    // -----------------------------------------------------------------------
+
+    function renderCard(hostCfg, data, role, hostSlots, allSlots, capInfo) {
+      const name = hostCfg.name;
+      const online = data ? data._online !== false : false;
+      const ts = data ? data._ts : null;
       const metaLine = online
         ? `${data.hostname || name}  ·  ${timeAgo(ts)}`
         : `Offline  ·  last seen ${timeAgo(ts)}`;
 
-      const bodyContent = online
-        ? `${cpuSection}${gpuSection}${diskSection}${ioSection}${svcSection}`
-        : `<div class="offline-msg">Host is unreachable</div>`;
+      const body = data ? metricsBody(data) : `<div class="card-body"><div class="offline-msg">No data</div></div>`;
+      const extras = extraPanels(hostCfg, role, data, hostSlots, allSlots, capInfo);
 
       return `
         <div class="host-card ${online ? '' : 'offline'}" id="card-${CSS.escape(name)}" data-host="${name}">
@@ -306,11 +422,28 @@
               <span class="expand-icon">▾</span>
             </div>
           </div>
-          <div class="card-body">${bodyContent}</div>
+          ${body}
+          ${extras}
           <div class="history-panel" id="history-${CSS.escape(name)}">
             <div class="history-loading">Loading history…</div>
           </div>
         </div>`;
+    }
+
+    // -----------------------------------------------------------------------
+    // Section renderer
+    // -----------------------------------------------------------------------
+
+    function renderSection(title, hosts, role, summary, slotsByHost, allSlots, capsByHost) {
+      if (!hosts || hosts.length === 0) return '';
+      const cards = hosts.map(h =>
+        renderCard(h, summary[h.name], role, slotsByHost[h.name] || [], allSlots, capsByHost[h.name])
+      ).join('');
+      return `
+        <section class="role-section">
+          <div class="role-title">${title}</div>
+          <div class="hosts-grid">${cards}</div>
+        </section>`;
     }
 
     // -----------------------------------------------------------------------
@@ -320,36 +453,13 @@
     function makeChart(ctx, label, color) {
       return new Chart(ctx, {
         type: 'line',
-        data: {
-          datasets: [{
-            label,
-            data: [],
-            borderColor: color,
-            backgroundColor: color + '22',
-            borderWidth: 1.5,
-            pointRadius: 0,
-            fill: true,
-            tension: 0.3,
-          }]
-        },
+        data: { datasets: [{ label, data: [], borderColor: color, backgroundColor: color + '22', borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.3 }] },
         options: {
-          animation: false,
-          responsive: true,
-          maintainAspectRatio: false,
+          animation: false, responsive: true, maintainAspectRatio: false,
           plugins: { legend: { display: false } },
           scales: {
-            x: {
-              type: 'time',
-              time: { unit: 'hour', tooltipFormat: 'HH:mm' },
-              ticks: { color: '#7a82a8', maxTicksLimit: 8 },
-              grid: { color: '#2e3250' },
-            },
-            y: {
-              min: 0,
-              max: 100,
-              ticks: { color: '#7a82a8', callback: v => v + '%' },
-              grid: { color: '#2e3250' },
-            }
+            x: { type: 'time', time: { unit: 'hour', tooltipFormat: 'HH:mm' }, ticks: { color: '#7a82a8', maxTicksLimit: 8 }, grid: { color: '#2e3250' } },
+            y: { min: 0, max: 100, ticks: { color: '#7a82a8', callback: v => v + '%' }, grid: { color: '#2e3250' } }
           }
         }
       });
@@ -359,79 +469,52 @@
       const panel = document.getElementById('history-' + CSS.escape(host));
       if (!panel) return;
       panel.innerHTML = '<div class="history-loading">Loading…</div>';
-
       let points;
       try {
         const resp = await fetch(`/api/metrics/${encodeURIComponent(host)}/history`);
-        const json = await resp.json();
-        points = json.points || [];
+        points = (await resp.json()).points || [];
       } catch (e) {
         panel.innerHTML = '<div class="history-loading">Failed to load history.</div>';
         return;
       }
 
-      // Build time-series data
       const times = points.map(p => new Date(p._ts * 1000));
-      const cpuData   = points.map((p, i) => ({ x: times[i], y: p.cpu?.percent ?? null }));
-      const memData   = points.map((p, i) => ({ x: times[i], y: p.memory?.percent ?? null }));
-      const gpuData   = points.map((p, i) => ({ x: times[i], y: p.gpu?.[0]?.util_percent ?? null }));
-      const vramData  = points.map((p, i) => ({ x: times[i], y: p.gpu?.[0]?.mem_percent ?? null }));
-      const diskData  = points.map((p, i) => {
+      const cpuData  = points.map((p, i) => ({ x: times[i], y: p.cpu?.percent ?? null }));
+      const memData  = points.map((p, i) => ({ x: times[i], y: p.memory?.percent ?? null }));
+      const gpuData  = points.map((p, i) => ({ x: times[i], y: p.gpu?.[0]?.util_percent ?? null }));
+      const vramData = points.map((p, i) => ({ x: times[i], y: p.gpu?.[0]?.mem_percent ?? null }));
+      const diskData = points.map((p, i) => {
         const d = p.disk?.find(d => d.mountpoint === '/');
         return { x: times[i], y: d?.percent ?? null };
       });
-
       const hasGpu = points.some(p => p.gpu?.length > 0);
 
       panel.innerHTML = `
-        <div>
-          <div class="chart-title">CPU %</div>
-          <div class="chart-wrap"><canvas id="ch-cpu-${CSS.escape(host)}"></canvas></div>
-        </div>
-        <div>
-          <div class="chart-title">Memory %</div>
-          <div class="chart-wrap"><canvas id="ch-mem-${CSS.escape(host)}"></canvas></div>
-        </div>
+        <div><div class="chart-title">CPU %</div><div class="chart-wrap"><canvas id="ch-cpu-${CSS.escape(host)}"></canvas></div></div>
+        <div><div class="chart-title">Memory %</div><div class="chart-wrap"><canvas id="ch-mem-${CSS.escape(host)}"></canvas></div></div>
         ${hasGpu ? `
-        <div>
-          <div class="chart-title">GPU Utilization %</div>
-          <div class="chart-wrap"><canvas id="ch-gpu-${CSS.escape(host)}"></canvas></div>
-        </div>
-        <div>
-          <div class="chart-title">VRAM %</div>
-          <div class="chart-wrap"><canvas id="ch-vram-${CSS.escape(host)}"></canvas></div>
-        </div>` : ''}
-        <div>
-          <div class="chart-title">Root Disk %</div>
-          <div class="chart-wrap"><canvas id="ch-disk-${CSS.escape(host)}"></canvas></div>
-        </div>`;
+        <div><div class="chart-title">GPU Util %</div><div class="chart-wrap"><canvas id="ch-gpu-${CSS.escape(host)}"></canvas></div></div>
+        <div><div class="chart-title">VRAM %</div><div class="chart-wrap"><canvas id="ch-vram-${CSS.escape(host)}"></canvas></div></div>` : ''}
+        <div><div class="chart-title">Root Disk %</div><div class="chart-wrap"><canvas id="ch-disk-${CSS.escape(host)}"></canvas></div></div>`;
 
-      // Destroy old charts for this host
-      if (charts[host]) {
-        Object.values(charts[host]).forEach(c => c.destroy());
-      }
+      if (charts[host]) Object.values(charts[host]).forEach(c => c.destroy());
       charts[host] = {};
 
       charts[host].cpu  = makeChart(document.getElementById(`ch-cpu-${CSS.escape(host)}`),  'CPU',    '#5c7cfa');
       charts[host].mem  = makeChart(document.getElementById(`ch-mem-${CSS.escape(host)}`),  'Memory', '#40c057');
       charts[host].disk = makeChart(document.getElementById(`ch-disk-${CSS.escape(host)}`), 'Disk',   '#fab005');
-
       charts[host].cpu.data.datasets[0].data  = cpuData;
       charts[host].mem.data.datasets[0].data  = memData;
       charts[host].disk.data.datasets[0].data = diskData;
+      charts[host].cpu.update(); charts[host].mem.update(); charts[host].disk.update();
 
       if (hasGpu) {
-        charts[host].gpu  = makeChart(document.getElementById(`ch-gpu-${CSS.escape(host)}`),  'GPU',   '#cc5de8');
-        charts[host].vram = makeChart(document.getElementById(`ch-vram-${CSS.escape(host)}`), 'VRAM',  '#e64980');
+        charts[host].gpu  = makeChart(document.getElementById(`ch-gpu-${CSS.escape(host)}`),  'GPU',  '#cc5de8');
+        charts[host].vram = makeChart(document.getElementById(`ch-vram-${CSS.escape(host)}`), 'VRAM', '#e64980');
         charts[host].gpu.data.datasets[0].data  = gpuData;
         charts[host].vram.data.datasets[0].data = vramData;
-        charts[host].gpu.update();
-        charts[host].vram.update();
+        charts[host].gpu.update(); charts[host].vram.update();
       }
-
-      charts[host].cpu.update();
-      charts[host].mem.update();
-      charts[host].disk.update();
     }
 
     function toggleExpand(host) {
@@ -439,43 +522,59 @@
       if (!card) return;
       const wasExpanded = card.classList.contains('expanded');
       card.classList.toggle('expanded');
-      if (!wasExpanded) {
-        loadHistory(host);
-      }
+      if (!wasExpanded) loadHistory(host);
     }
 
     // -----------------------------------------------------------------------
-    // Data fetch & render
+    // Fetch & render
     // -----------------------------------------------------------------------
 
     async function refresh() {
       document.getElementById('refresh-info').textContent = 'Refreshing…';
       try {
-        const resp = await fetch('/api/summary');
-        const summary = await resp.json();
+        const [sumRes, cfgRes, slotsRes, capsRes] = await Promise.all([
+          fetch('/api/summary'),
+          fetch('/api/config'),
+          fetch('/api/slots'),
+          fetch('/api/capabilities'),
+        ]);
+        const summary  = await sumRes.json();
+        const config   = await cfgRes.json();
+        const slotsData = await slotsRes.json();
+        const caps     = await capsRes.json();
 
-        const grid = document.getElementById('hosts-grid');
-        // Preserve expanded state
         const expanded = new Set(
-          [...document.querySelectorAll('.host-card.expanded')]
-            .map(c => c.dataset.host)
+          [...document.querySelectorAll('.host-card.expanded')].map(c => c.dataset.host)
         );
 
-        grid.innerHTML = Object.entries(summary)
-          .map(([name, data]) => renderCard(name, data))
-          .join('');
-
-        // Restore expanded state + reload charts
-        for (const host of expanded) {
-          const card = document.getElementById('card-' + CSS.escape(host));
-          if (card) {
-            card.classList.add('expanded');
-            loadHistory(host);
-          }
+        const byRole = {};
+        for (const h of config.hosts) {
+          const r = h.role || 'monitor';
+          (byRole[r] = byRole[r] || []).push(h);
         }
 
-        const now = new Date().toLocaleTimeString();
-        document.getElementById('refresh-info').textContent = `Updated ${now}`;
+        const slotsByHost = {};
+        for (const s of slotsData.slots) {
+          (slotsByHost[s.host] = slotsByHost[s.host] || []).push(s);
+        }
+        const capsByHost = {};
+        for (const h of caps.hosts) capsByHost[h.name] = h;
+
+        const allSlots = slotsData.slots;
+
+        document.getElementById('main-content').innerHTML = [
+          renderSection('Server',      byRole['server'],     'server',     summary, slotsByHost, allSlots, capsByHost),
+          renderSection('LLM Servers', byRole['llm-server'], 'llm-server', summary, slotsByHost, allSlots, capsByHost),
+          renderSection('Dev Hosting', byRole['dev-laptop'], 'dev-laptop', summary, slotsByHost, allSlots, capsByHost),
+          renderSection('Other',       byRole['monitor'],    'monitor',    summary, slotsByHost, allSlots, capsByHost),
+        ].join('');
+
+        for (const host of expanded) {
+          const card = document.getElementById('card-' + CSS.escape(host));
+          if (card) { card.classList.add('expanded'); loadHistory(host); }
+        }
+
+        document.getElementById('refresh-info').textContent = `Updated ${new Date().toLocaleTimeString()}`;
       } catch (e) {
         document.getElementById('refresh-info').textContent = 'Error fetching data';
         console.error(e);
@@ -489,10 +588,7 @@
       countdownTimer = setInterval(() => {
         secondsLeft--;
         document.getElementById('countdown').textContent = `Next in ${secondsLeft}s`;
-        if (secondsLeft <= 0) {
-          clearInterval(countdownTimer);
-          refresh();
-        }
+        if (secondsLeft <= 0) { clearInterval(countdownTimer); refresh(); }
       }, 1000);
     }
 
@@ -500,7 +596,6 @@
     // Init
     // -----------------------------------------------------------------------
 
-    // Inject Chart.js time adapter from CDN
     const adapterScript = document.createElement('script');
     adapterScript.src = 'https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js';
     adapterScript.onload = () => refresh();

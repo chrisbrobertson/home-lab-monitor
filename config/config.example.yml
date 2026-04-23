@@ -22,20 +22,23 @@ slot_policy:
 hosts:
   - name: "AI Server"
     address: "192.168.1.10"
-    port: 9100          # Agent port (default 9100)
-    docker: true        # true = eligible for slot reservations
-    max_slots: 4        # Max slots for this host (defaults to slot_policy max)
-    ssh_user: "ubuntu"  # Used only if you SSH to this host manually
+    port: 9100            # Agent port (default 9100)
+    role: llm-server      # server | llm-server | dev-laptop | monitor
+    docker: true          # true = eligible for slot reservations
+    max_slots: 4          # Max slots for this host (defaults to slot_policy max)
+    ssh_user: "ubuntu"    # Used only if you SSH to this host manually
 
   - name: "NAS"
     address: "192.168.1.20"
     port: 9100
+    role: monitor
     docker: false
 
-  - name: "Workstation"
+  - name: "Dev Laptop"
     address: "192.168.1.30"
     port: 9100
-    docker: true
+    role: dev-laptop      # dev-laptop cards show Colima status + per-host slot list
+    docker: true          # dev laptops run Colima as the container runtime
     max_slots: 2
     ssh_user: "chris"
 
@@ -48,9 +51,14 @@ hosts:
 
 # Services to monitor on THIS host
 # services:
+#   # LLM inference server — shows active models in dashboard
 #   - name: "Ollama"
-#     type: systemd       # systemd | port | http | process
-#     unit: ollama        # systemd unit name
+#     type: ollama          # GET /api/ps; detail field = active model names
+#     url: "http://localhost:11434/api/ps"   # optional, this is the default
+
+#   # Colima container runtime (macOS dev laptops)
+#   - name: "Colima"
+#     type: colima          # runs `colima status`; badge highlighted on dev-laptop cards
 
 #   - name: "OpenHands"
 #     type: port

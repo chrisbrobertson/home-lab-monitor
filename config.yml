@@ -18,16 +18,19 @@ hosts:
     address: "192.168.1.129"
     port: 9100
     ssh_user: "crobertson"    # server host; SSH requires interactive PTY
+    role: server
 
   - name: "Mac Studio"
     address: "192.168.1.130"
     port: 9100
     ssh_user: "chrisrobertson"
+    role: llm-server
 
   - name: "Spark DGX"
     address: "192.168.1.93"
     port: 9100
     ssh_user: "crobertson"
+    role: llm-server
     docker: true
     max_slots: 4
 
@@ -35,16 +38,28 @@ hosts:
     address: "192.168.1.81"
     port: 9100
     ssh_user: "chrisrobertson"
+    role: dev-laptop
+    docker: true
+    max_slots: 2
 
   - name: "mbp15-1"
     address: "192.168.1.85"
     port: 9100
     ssh_user: "chrisrobertson"
+    role: dev-laptop
+    docker: true
+    max_slots: 2
 
   - name: "CB-R746XQJCQ3-M"
     address: "192.168.1.84"
     port: 9100
+    role: dev-laptop
+    docker: true
+    max_slots: 2
 
   - name: "CRs-MacBook-Pro-2"
     address: "192.168.1.229"
     port: 9100
+    role: dev-laptop
+    docker: true
+    max_slots: 2

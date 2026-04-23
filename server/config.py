@@ -40,6 +40,7 @@ class HostConfig:
     docker: bool = False
     max_slots: int = 0
     ssh_user: str = ""
+    role: str = "monitor"
 
 
 @dataclass
@@ -88,6 +89,7 @@ def parse_hosts(raw: dict) -> List[HostConfig]:
             docker=h.get("docker", False),
             max_slots=h.get("max_slots", 0),
             ssh_user=h.get("ssh_user", ""),
+            role=h.get("role", "monitor"),
         ))
     return hosts
 

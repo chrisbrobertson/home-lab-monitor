@@ -93,12 +93,13 @@ hosts:
   - name: "Host Name"
     address: "192.168.1.x"
     port: 9100
+    role: server        # server | llm-server | dev-laptop | monitor (default: monitor)
     docker: true        # eligible for slot placement
     max_slots: 2        # max concurrent slots on this host
     ssh_user: "admin"   # returned to callers for DOCKER_HOST=ssh:// use
 ```
 
-Each host runs `agent.py` (with its own per-host `config.yml` for service checks). Agent port defaults to 9100. The `docker`, `max_slots`, and `ssh_user` fields are optional and default to `false`, `0`, and `null` — hosts without them are monitoring-only.
+Each host runs `agent.py` (with its own per-host `config.yml` for service checks). Agent port defaults to 9100. The `role`, `docker`, `max_slots`, and `ssh_user` fields are optional. `role` defaults to `"monitor"` and controls dashboard grouping and which role-specific panels are shown (slot registry, active models, Colima status). The `docker` field defaults to `false` — hosts without it are monitoring-only and ineligible for slot placement.
 
 ## Slot and Registry API
 
@@ -112,7 +113,8 @@ The server exposes a reservation API on top of the monitoring data. Callers (e.g
 | `GET` | `/api/slots/{slot_id}` | Get a single slot |
 | `DELETE` | `/api/slots/{slot_id}` | Release a slot immediately |
 | `POST` | `/api/slots/{slot_id}/heartbeat` | Extend a slot's TTL |
-| `GET` | `/api/agent-guide` | Self-contained Markdown runbook for AI agents — endpoint reference, workflow, error handling, current config values |
+
+The full AI-agent-facing usage guide (endpoint reference, workflow, request/response shapes) lives in the **Agent API guide** section of `README.md`.
 
 Slot placement uses live monitoring data from the metrics DB: hosts over `cpu_threshold` or `memory_threshold` (default 85%) are excluded regardless of available slot count. Expired slots are reaped automatically by the polling loop.
 
@@ -120,12 +122,16 @@ The image registry (`registry:2`) runs independently on a designated host. The s
 
 ## Service Check Types
 
-| type | description | required fields |
-| --- | --- | --- |
-| `systemd` | `systemctl is-active <unit>` | `unit` |
-| `port` | TCP connect | `port`, optional `host` |
-| `http` | HTTP GET (200 = up) | `url` or `port` |
-| `process` | psutil process name match | `process` |
+| type | description | required fields | detail field |
+| --- | --- | --- | --- |
+| `systemd` | `systemctl is-active <unit>` | `unit` | — |
+| `port` | TCP connect | `port`, optional `host` | — |
+| `http` | HTTP GET (200 = up) | `url` or `port` | — |
+| `process` | psutil process name match | `process` | — |
+| `colima` | `colima status` exit code | — | — |
+| `ollama` | `GET /api/ps` — up if reachable | optional `url` | comma-separated active model names |
+
+The `detail` field is included in service check results only when non-null. The dashboard uses it to render the Active Models panel on `llm-server` host cards.
 
 ## Environment Variables (Server)
 
