@@ -1,0 +1,10 @@
+port: 9100
+
+services:
+  - name: "SSH"
+    type: port
+    port: 22
+
+  - name: "Home Lab Monitor"
+    type: port
+    port: 8888

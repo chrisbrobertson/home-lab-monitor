@@ -1,0 +1,49 @@
+server:
+  port: 8888
+
+registry:
+  host: "192.168.1.93"   # Spark DGX
+  port: 5000
+  scheme: "http"
+
+slot_policy:
+  max_slots_per_host: 4
+  default_ttl_seconds: 3600
+  port_base: 20000
+  port_stride: 10
+  max_port_offsets: 50
+
+hosts:
+  - name: "Mac Mini"
+    address: "192.168.1.129"
+    port: 9100
+    ssh_user: "crobertson"    # server host; SSH requires interactive PTY
+
+  - name: "Mac Studio"
+    address: "192.168.1.130"
+    port: 9100
+    ssh_user: "chrisrobertson"
+
+  - name: "Spark DGX"
+    address: "192.168.1.93"
+    port: 9100
+    ssh_user: "crobertson"
+    docker: true
+    max_slots: 4
+
+  - name: "C02D83TGMD6T"
+    address: "192.168.1.81"
+    port: 9100
+
+  - name: "mbp15-1"
+    address: "192.168.1.85"
+    port: 9100
+    ssh_user: "chrisrobertson"
+
+  - name: "CB-R746XQJCQ3-M"
+    address: "192.168.1.84"
+    port: 9100
+
+  - name: "CRs-MacBook-Pro-2"
+    address: "192.168.1.229"
+    port: 9100

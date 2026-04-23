@@ -203,8 +203,7 @@ CREATE INDEX idx_host_ts ON metrics (host, ts);
 2. The `/metrics` JSON schema (§3.2) is the API contract. Removing or renaming fields is a MINOR or MAJOR version bump depending on whether the server can handle the absence gracefully.
 3. The server must never connect directly to monitored hosts for anything other than polling `GET /metrics`. No SSH, no SNMP, no agent push.
 4. The SQLite database must not be committed to the repository.
-5. `config.yml` at the repo root contains real IP addresses and must not be committed. Use `config/config.example.yml` as the public reference.
-6. The dashboard must function with no build step — `static/index.html` is the deployable artifact as-is.
+5. The dashboard must function with no build step — `static/index.html` is the deployable artifact as-is.
 
 ## 6. Rationale
 
@@ -221,8 +220,6 @@ CREATE INDEX idx_host_ts ON metrics (host, ts);
 ## 7. Open Questions
 
 - [ ] Disk partition filtering is hardcoded — should it be configurable per host? Currently excludes `tmpfs`, `devtmpfs`, `squashfs`, `overlay`, `proc`, `sysfs`.
-- [ ] The server port in `config.yml` (8888) differs from the README default (8080). Pick one and update the other.
-- [ ] No `.gitignore` exists yet — `metrics.db`, `__pycache__/`, and `*.pyc` should be excluded.
 - [ ] No authentication. Acceptable for local-network use, but worth noting if the server is ever exposed beyond the LAN.
 
 ## 8. Changelog

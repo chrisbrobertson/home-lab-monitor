@@ -3,10 +3,6 @@ metrics.db
 metrics.db-shm
 metrics.db-wal
 
-# Real config (contains LAN IPs)
-config.yml
-agent-config.yml
-
 # Python
 __pycache__/
 *.pyc

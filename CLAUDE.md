@@ -170,7 +170,6 @@ Fix disk partition deduplication to avoid double-counting bind mounts
 
 Do not commit:
 - `metrics.db` or any SQLite database file
-- `config.yml` with real IP addresses (use `config/config.example.yml` as the reference)
 - Any file containing secrets or credentials
 
 ## Key Architectural Constraints
