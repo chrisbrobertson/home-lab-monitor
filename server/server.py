@@ -232,17 +232,22 @@ def _slot_response(slot: dict, server_cfg) -> dict:
         (h for h in server_cfg.hosts if h.name == slot["host"]), None
     )
     port_range_start = sp.port_base + slot["port_offset"] * sp.port_stride
+    port_range_end = port_range_start + sp.port_stride - 1
     now = int(time.time())
     return {
         "id": slot["id"],
         "host": slot["host"],
         "host_address": host_cfg.address if host_cfg else None,
+        "ssh_user": host_cfg.ssh_user if host_cfg else None,
+        "registry_url": server_cfg.registry.url if server_cfg.registry else None,
+        "compose_project": f"hlab-{slot['id']}",
         "caller": slot["caller"],
         "label": slot["label"],
         "port_base": sp.port_base,
         "port_offset": slot["port_offset"],
         "port_stride": sp.port_stride,
         "port_range_start": port_range_start,
+        "port_range_end": port_range_end,
         "created_ts": slot["created_ts"],
         "expires_ts": slot["expires_ts"],
         "expires_in_seconds": max(0, slot["expires_ts"] - now),
