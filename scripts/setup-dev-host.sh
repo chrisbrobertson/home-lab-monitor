@@ -281,11 +281,11 @@ PYEOF
 fi
 
 # 3b. Start or restart Colima
-if colima status 2>/dev/null | grep -qi "running"; then
+if colima status 2>&1 | grep -qi "running"; then
     if [[ "$REGISTRY_ADDED" -eq 1 ]]; then
         _inst "Restarting Colima to apply registry config..."
         colima restart
-        if colima status 2>/dev/null | grep -qi "running"; then
+        if colima status 2>&1 | grep -qi "running"; then
             _ok "Colima restarted"
         else
             _fail "Colima restart failed"
@@ -296,7 +296,7 @@ if colima status 2>/dev/null | grep -qi "running"; then
 else
     _inst "Starting Colima (cpu=${COLIMA_CPU}, memory=${COLIMA_MEMORY}GB, disk=${COLIMA_DISK}GB)..."
     colima start --cpu "$COLIMA_CPU" --memory "$COLIMA_MEMORY" --disk "$COLIMA_DISK"
-    if colima status 2>/dev/null | grep -qi "running"; then
+    if colima status 2>&1 | grep -qi "running"; then
         _ok "Colima started"
     else
         _fail "Colima failed to start — check 'colima logs'"
@@ -329,7 +329,7 @@ else
 fi
 
 # Colima running
-if colima status 2>/dev/null | grep -qi "running"; then
+if colima status 2>&1 | grep -qi "running"; then
     _ok "Colima is running"
 else
     _fail "Colima is not running"
