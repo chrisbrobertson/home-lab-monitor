@@ -171,6 +171,33 @@ def api_summary():
     return JSONResponse(result)
 
 
+@app.get("/api/babysit")
+def api_babysit():
+    """Returns babysit instances from all configured hosts."""
+    config = load_config()
+    instances_by_host = {}
+    as_of = int(time.time())
+    
+    for h in config.get("hosts", []):
+        name = h["name"]
+        latest = _db.latest(name)
+        if not latest or not latest.get("_online"):
+            continue
+        
+        babysit_list = latest.get("babysit", [])
+        if not babysit_list:
+            continue
+        
+        # Filter out finished entries older than 300 seconds
+        # The agent already filters based on log mtime, so we include all
+        instances_by_host[name] = babysit_list
+    
+    return JSONResponse({
+        "instances_by_host": instances_by_host,
+        "as_of": as_of,
+    })
+
+
 # ---------------------------------------------------------------------------
 # Capabilities
 # ---------------------------------------------------------------------------

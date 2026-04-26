@@ -2,10 +2,10 @@
 openapi: "3.0"
 info:
   title: "Home Lab Monitor — Architecture Spec"
-  version: "0.2"
+  version: "0.3"
   status: "draft"
   authors: []
-  updated: "2026-04-22"
+  updated: "2026-04-26"
   scope: "System-level architecture for Home Lab Monitor — agent/server split, metrics contract, storage model, dashboard design, and deployment model"
   owner: "specs"
   components:
@@ -138,12 +138,27 @@ The agent outputs a flat JSON object at `GET /metrics`. This is the API contract
       "up": "<boolean>",
       "type": "<string: systemd | port | http | process | colima | ollama>",
       "detail": "<string | omitted>"
+    }  ],
+  "babysit": [
+    {
+      "project": "<string>",
+      "pid": "<integer>",
+      "started_at": "<integer, unix seconds>",
+      "log_path": "<string>",
+      "state": "<string: running | backoff | crashed | finished>",
+      "iter_current": "<integer | null>",
+      "max_iter": "<integer | null>",
+      "backoff_until": "<integer, unix seconds | null>",
+      "termination_reason": "<string | null>",
+      "last_action": "<string | null — only present when babysit.include_last_action: true>"
     }
   ]
 }
 ```
 
 **Notes:**
+
+- `babysit` is an optional array added in v0.3. See `babysit-tab-v0.1.md` for the full schema and discovery logic.
 
 - `gpu` is an empty array `[]` when no NVIDIA GPU is present or `nvidia-ml-py` is not installed.
 - `io` rates (`read_mbps`, `write_mbps`, `recv_mbps`, `sent_mbps`) are `0.0` on the first request because rate calculation requires two samples.
@@ -242,4 +257,5 @@ CREATE INDEX idx_host_ts ON metrics (host, ts);
 | Version | Date | Summary |
 | --- | --- | --- |
 | 0.1 | 2026-04-22 | Initial draft — documents existing implementation |
+| 0.3 | 2026-04-26 | Add optional `babysit` field to `/metrics` (agent-side discovery of babysit.sh instances); add `/api/babysit` server endpoint; add Babysit dashboard tab |
 | 0.2 | 2026-04-22 | Add `role` field to host config and API responses; add `colima` and `ollama` service check types with optional `detail` field; role-grouped dashboard with slot registry, active models, and per-host slot panels |

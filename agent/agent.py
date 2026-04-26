@@ -7,13 +7,16 @@ Usage:
 
 The agent serves metrics at http://0.0.0.0:9100/metrics as JSON.
 """
+import glob
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
 import time
 import threading
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.request import urlopen
 from urllib.error import URLError
@@ -248,6 +251,264 @@ def get_services(config):
 
 
 # ---------------------------------------------------------------------------
+# Babysit discovery
+# ---------------------------------------------------------------------------
+
+_max_iter_cache = {}  # log_path -> max_iter
+_orphan_emitted = set()  # stop_file paths already emitted as orphaned
+
+
+def get_babysit(config):
+    """Discover running babysit.sh instances from configured scan paths."""
+    babysit_cfg = config.get("babysit", {})
+    scan_paths_raw = babysit_cfg.get("scan_paths", ["~/sisyphus-logs"])
+    include_last_action = babysit_cfg.get("include_last_action", False)
+    
+    scan_paths = [os.path.expanduser(p) for p in scan_paths_raw]
+    scan_paths = [p for p in scan_paths if os.path.isdir(p)]
+    
+    if not scan_paths:
+        return []
+    
+    instances = []
+    now = int(time.time())
+    
+    # Find all .stop files and matching logs
+    for scan_path in scan_paths:
+        for stop_file in glob.glob(os.path.join(scan_path, "*.stop")):
+            project = os.path.basename(stop_file).replace(".stop", "")
+            
+            # Find most recent matching log
+            log_pattern = os.path.join(scan_path, f"{project}-*.log")
+            logs = glob.glob(log_pattern)
+            if not logs:
+                continue
+            
+            log_path = max(logs, key=os.path.getmtime)
+            
+            # Parse log filename: <project>-YYYYMMDD-HHMMSS-<pid>.log
+            log_name = os.path.basename(log_path)
+            match = re.match(r"(.+)-(\d{8})-(\d{6})-(\d+)\.log$", log_name)
+            if not match:
+                continue
+            
+            _, date_str, time_str, pid_str = match.groups()
+            pid = int(pid_str)
+            
+            # Parse started_at from filename
+            try:
+                dt = datetime.strptime(date_str + time_str, "%Y%m%d%H%M%S")
+                started_at = int(dt.timestamp())
+            except ValueError:
+                continue
+            
+            # PID-recycle-safe liveness check
+            alive = False
+            try:
+                proc = psutil.Process(pid)
+                cmdline = " ".join(proc.cmdline())
+                alive = ("babysit" in cmdline and
+                         abs(proc.create_time() - started_at) < 5)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                alive = False
+            
+            # Check for orphaned stop file (>24h old, no live process)
+            stop_mtime = os.path.getmtime(stop_file)
+            if stop_mtime < now - 86400 and not alive:
+                if stop_file not in _orphan_emitted:
+                    _orphan_emitted.add(stop_file)
+                    instances.append({
+                        "project": project,
+                        "pid": pid,
+                        "started_at": started_at,
+                        "log_path": log_path,
+                        "state": "crashed",
+                        "iter_current": None,
+                        "max_iter": None,
+                        "backoff_until": None,
+                        "termination_reason": "orphaned stop file (>24h, no live process)",
+                    })
+                continue
+            
+            # Read log tail (cap at 64 KB)
+            try:
+                file_size = os.path.getsize(log_path)
+                with open(log_path, "rb") as f:
+                    f.seek(max(0, file_size - 65536))
+                    tail = f.read().decode("utf-8", errors="replace")
+            except Exception:
+                continue
+            
+            # Extract max_iter from head (cache it)
+            max_iter = None
+            if log_path not in _max_iter_cache:
+                try:
+                    with open(log_path, "rb") as f:
+                        head = f.read(4096).decode("utf-8", errors="replace")
+                    m = re.search(r"max_iter:\s*(\d+)", head)
+                    if m:
+                        max_iter = int(m.group(1))
+                        _max_iter_cache[log_path] = max_iter
+                except Exception:
+                    pass
+            else:
+                max_iter = _max_iter_cache.get(log_path)
+            
+            # Extract from tail
+            iter_current = None
+            m = re.findall(r"=== iter (\d+) @", tail)
+            if m:
+                iter_current = int(m[-1])
+            
+            backoff_until = None
+            m = re.findall(r"Usage limit — backing off \d+m \(resuming ~(\d{2}:\d{2})\)", tail)
+            if m:
+                time_str = m[-1]
+                try:
+                    # Parse HH:MM and convert to unix timestamp
+                    hh, mm = map(int, time_str.split(":"))
+                    resume_today = datetime.now().replace(hour=hh, minute=mm, second=0, microsecond=0)
+                    # If the time is in the past, assume tomorrow
+                    if resume_today.timestamp() < time.time():
+                        resume_today += timedelta(days=1)
+                    backoff_until = int(resume_today.timestamp())
+                except Exception:
+                    pass
+            
+            termination_reason = None
+            for pattern, reason in [
+                (r"STOP signal received", "STOP signal received"),
+                (r"Hit MAX_ITER", "Hit MAX_ITER"),
+                (r"Stuck:", "Stuck"),
+                (r"Done after", "Done after"),
+            ]:
+                if re.search(pattern, tail):
+                    termination_reason = reason
+                    break
+            
+            last_action = None
+            if include_last_action:
+                m = re.findall(r"\s+\[(text|tool)\] (.+)", tail)
+                if m:
+                    last_action = m[-1][1][:200]
+            
+            # Derive state
+            if alive:
+                if backoff_until:
+                    state = "backoff"
+                else:
+                    state = "running"
+            else:
+                state = "crashed"
+            
+            entry = {
+                "project": project,
+                "pid": pid,
+                "started_at": started_at,
+                "log_path": log_path,
+                "state": state,
+                "iter_current": iter_current,
+                "max_iter": max_iter,
+                "backoff_until": backoff_until,
+                "termination_reason": termination_reason,
+            }
+            if include_last_action and last_action is not None:
+                entry["last_action"] = last_action
+            
+            instances.append(entry)
+        
+        # Check for recently-terminated (log exists, no stop file, mtime < 300s ago)
+        for log_path in glob.glob(os.path.join(scan_path, "*-*.log")):
+            log_name = os.path.basename(log_path)
+            match = re.match(r"(.+)-(\d{8})-(\d{6})-(\d+)\.log$", log_name)
+            if not match:
+                continue
+            
+            project, date_str, time_str, pid_str = match.groups()
+            stop_file = os.path.join(scan_path, f"{project}.stop")
+            
+            # Skip if stop file exists (already handled above)
+            if os.path.exists(stop_file):
+                continue
+            
+            # Only include if log mtime is recent
+            log_mtime = os.path.getmtime(log_path)
+            if log_mtime < now - 300:
+                continue
+            
+            pid = int(pid_str)
+            try:
+                dt = datetime.strptime(date_str + time_str, "%Y%m%d%H%M%S")
+                started_at = int(dt.timestamp())
+            except ValueError:
+                continue
+            
+            # Read tail
+            try:
+                file_size = os.path.getsize(log_path)
+                with open(log_path, "rb") as f:
+                    f.seek(max(0, file_size - 65536))
+                    tail = f.read().decode("utf-8", errors="replace")
+            except Exception:
+                continue
+            
+            # Extract max_iter
+            max_iter = _max_iter_cache.get(log_path)
+            if max_iter is None:
+                try:
+                    with open(log_path, "rb") as f:
+                        head = f.read(4096).decode("utf-8", errors="replace")
+                    m = re.search(r"max_iter:\s*(\d+)", head)
+                    if m:
+                        max_iter = int(m.group(1))
+                        _max_iter_cache[log_path] = max_iter
+                except Exception:
+                    pass
+            
+            # Extract iter
+            iter_current = None
+            m = re.findall(r"=== iter (\d+) @", tail)
+            if m:
+                iter_current = int(m[-1])
+            
+            # Extract termination reason
+            termination_reason = None
+            for pattern, reason in [
+                (r"STOP signal received", "STOP signal received"),
+                (r"Hit MAX_ITER", "Hit MAX_ITER"),
+                (r"Stuck:", "Stuck"),
+                (r"Done after", "Done after"),
+            ]:
+                if re.search(pattern, tail):
+                    termination_reason = reason
+                    break
+            
+            last_action = None
+            if include_last_action:
+                m = re.findall(r"\s+\[(text|tool)\] (.+)", tail)
+                if m:
+                    last_action = m[-1][1][:200]
+            
+            entry = {
+                "project": project,
+                "pid": pid,
+                "started_at": started_at,
+                "log_path": log_path,
+                "state": "finished",
+                "iter_current": iter_current,
+                "max_iter": max_iter,
+                "backoff_until": None,
+                "termination_reason": termination_reason,
+            }
+            if include_last_action and last_action is not None:
+                entry["last_action"] = last_action
+            
+            instances.append(entry)
+    
+    return instances
+
+
+# ---------------------------------------------------------------------------
 # HTTP handler
 # ---------------------------------------------------------------------------
 
@@ -255,7 +516,7 @@ _config = {}
 
 
 def collect_metrics():
-    return {
+    data = {
         "hostname": socket.gethostname(),
         "timestamp": int(time.time()),
         "cpu": get_cpu(),
@@ -265,6 +526,13 @@ def collect_metrics():
         "gpu": get_gpu(),
         "services": get_services(_config),
     }
+    
+    # Add babysit field
+    babysit = get_babysit(_config)
+    if babysit or _config.get("babysit"):
+        data["babysit"] = babysit
+    
+    return data
 
 
 class MetricsHandler(BaseHTTPRequestHandler):
