@@ -59,6 +59,18 @@ services:
     port: 8000
 ```
 
+# Babysit discovery (optional — surfaces running babysit.sh instances)
+# The agent scans these paths for .stop files and matching logs.
+# NOTE: If the agent runs as a service account, you must configure explicit paths
+# for each user who runs babysit.sh, otherwise instances won't appear.
+babysit:
+  scan_paths:
+    - "~/sisyphus-logs"           # Default; expands to agent's $HOME
+    # If agent runs as 'hlab-agent' but babysit runs as 'chris':
+    # - "/home/chris/sisyphus-logs"
+  include_last_action: false      # Default off (redacted for security)
+```
+
 Start the agent:
 ```bash
 python /opt/hlab-agent/agent.py /opt/hlab-agent/config.yml
@@ -81,6 +93,31 @@ python server.py ../config.yml
 
 Open `http://localhost:8888` in your browser.
 
+## Babysit Tab
+
+The dashboard includes a **Babysit** tab that surfaces running `babysit.sh` instances across all hosts. The agent discovers instances by scanning configured paths for `.stop` files and matching log files.
+
+**Configuration (agent-side):**
+
+```yaml
+babysit:
+  scan_paths:
+    - "~/sisyphus-logs"           # Default path
+  include_last_action: false      # Set true to show last tool/text action (redacted by default)
+```
+
+**Important:** If the agent runs as a service account with a different `$HOME` than the user running `babysit.sh`, you must configure explicit paths or instances won't appear.
+
+**Dashboard features:**
+
+- Real-time state (running, backoff, crashed, finished)
+- Iteration progress (N / MAX_ITER)
+- Live backoff countdown when throttled
+- Started-at timestamp and PID
+- Termination reason for finished/crashed instances
+- Optional last-action line (when `include_last_action: true`)
+
+
 ## Server API
 
 | Method | Path | Description |
@@ -91,6 +128,8 @@ Open `http://localhost:8888` in your browser.
 | `GET` | `/api/summary` | Latest metrics for all configured hosts |
 | `GET` | `/api/metrics/{host}/latest` | Latest snapshot for one host |
 | `GET` | `/api/metrics/{host}/history` | Up to 1440 data points (24 h) |
+| `GET` | `/api/babysit` | Babysit instances from all hosts |
+
 | `GET` | `/api/capabilities` | Fleet capacity + Docker slot availability + registry |
 | `POST` | `/api/slots` | Reserve a deployment slot |
 | `GET` | `/api/slots` | List active slots (optional `?host=` filter) |

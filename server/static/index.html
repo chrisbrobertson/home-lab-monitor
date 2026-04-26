@@ -14,8 +14,10 @@
       --accent:   #5c7cfa;
       --green:    #40c057;
       --yellow:   #fab005;
+      --amber:    #f59e0b;
       --red:      #fa5252;
       --purple:   #cc5de8;
+      --grey:     #868e96;
       --text:     #e0e4f0;
       --muted:    #7a82a8;
       --radius:   10px;
@@ -39,6 +41,20 @@
     }
     #refresh-btn:hover { opacity: 0.85; }
     #countdown { color: var(--muted); font-size: 12px; min-width: 80px; text-align: right; }
+
+    .top-nav {
+      display: flex; gap: 8px; padding: 16px 24px 0;
+      border-bottom: 1px solid var(--border); background: var(--bg);
+    }
+    .top-nav button {
+      background: transparent; border: none; color: var(--muted);
+      padding: 8px 16px; cursor: pointer; font-size: 14px; font-weight: 500;
+      border-bottom: 2px solid transparent; transition: all 0.2s;
+    }
+    .top-nav button:hover { color: var(--text); }
+    .top-nav button.active {
+      color: var(--accent); border-bottom-color: var(--accent);
+    }
 
     main { padding: 24px; display: flex; flex-direction: column; gap: 32px; }
 
@@ -156,6 +172,33 @@
 
     .offline-msg { color: var(--red); font-size: 13px; padding: 20px 0; text-align: center; }
 
+    /* Babysit tab styles */
+    .babysit-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .babysit-header { display: flex; align-items: center; justify-content: space-between; }
+    .babysit-project { font-weight: 600; font-size: 15px; }
+    .state-badge {
+      padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .state-badge.running { background: var(--green); color: #fff; }
+    .state-badge.backoff { background: var(--amber); color: #000; }
+    .state-badge.crashed { background: var(--red); color: #fff; }
+    .state-badge.finished { background: var(--grey); color: #fff; }
+    .babysit-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--muted); }
+    .babysit-meta span { display: flex; align-items: center; gap: 4px; }
+    .babysit-action {
+      font-family: monospace; font-size: 12px; background: var(--surface2);
+      padding: 8px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; color: var(--text);
+    }
+    .empty-state {
+      color: var(--muted); font-size: 14px; text-align: center;
+      padding: 60px 24px; font-style: italic;
+    }
+
     @media (max-width: 600px) {
       .hosts-grid { grid-template-columns: 1fr; }
       .io-stats { grid-template-columns: 1fr; }
@@ -172,8 +215,18 @@
     </div>
   </header>
 
-  <main id="main-content">
-    <div style="color:var(--muted);text-align:center;padding:48px">Loading…</div>
+  <nav class="top-nav">
+    <button id="tab-btn-hosts" class="active" onclick="switchTab('hosts')">Hosts</button>
+    <button id="tab-btn-babysit" onclick="switchTab('babysit')">Babysit</button>
+  </nav>
+
+  <main>
+    <div id="tab-hosts">
+      <div style="color:var(--muted);text-align:center;padding:48px">Loading…</div>
+    </div>
+    <div id="tab-babysit" style="display:none">
+      <div style="color:var(--muted);text-align:center;padding:48px">Loading…</div>
+    </div>
   </main>
 
   <script>
@@ -181,6 +234,26 @@
     let countdownTimer = null;
     let secondsLeft = 0;
     const charts = {};
+    let currentTab = 'hosts';
+
+    // -----------------------------------------------------------------------
+    // Tab switching
+    // -----------------------------------------------------------------------
+
+    function switchTab(tab) {
+      currentTab = tab;
+      localStorage.setItem('hlab-active-tab', tab);
+      
+      // Update tab buttons
+      document.querySelectorAll('.top-nav button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.getElementById(`tab-btn-${tab}`).classList.add('active');
+      
+      // Show/hide content
+      document.getElementById('tab-hosts').style.display = tab === 'hosts' ? 'flex' : 'none';
+      document.getElementById('tab-babysit').style.display = tab === 'babysit' ? 'flex' : 'none';
+    }
 
     // -----------------------------------------------------------------------
     // Utilities
@@ -217,6 +290,14 @@
       if (sec < 60) return `${sec}s`;
       if (sec < 3600) return `${Math.round(sec / 60)}m`;
       return `${(sec / 3600).toFixed(1)}h`;
+    }
+
+    function fmtCountdown(ts) {
+      const sec = Math.max(0, ts - Math.floor(Date.now() / 1000));
+      if (sec === 0) return 'resuming now';
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `resuming in ${m}m ${s}s`;
     }
 
     function metricRow(label, pct, valStr) {
@@ -447,6 +528,84 @@
     }
 
     // -----------------------------------------------------------------------
+    // Babysit tab renderer
+    // -----------------------------------------------------------------------
+
+    function renderBabysitCard(inst, hostName) {
+      const state = inst.state || 'unknown';
+      const iter = inst.iter_current != null ? inst.iter_current : '?';
+      const maxIter = inst.max_iter != null ? inst.max_iter : '?';
+      const started = timeAgo(inst.started_at);
+      
+      let backoffHtml = '';
+      if (inst.backoff_until) {
+        backoffHtml = `<span data-backoff="${inst.backoff_until}">${fmtCountdown(inst.backoff_until)}</span>`;
+      }
+      
+      let actionHtml = '';
+      if (inst.last_action) {
+        const full = inst.last_action;
+        const truncated = full.length > 160 ? full.substring(0, 160) + '...' : full;
+        actionHtml = `<pre class="babysit-action" title="${full.replace(/"/g, '&quot;')}">${truncated}</pre>`;
+      }
+      
+      let reasonHtml = '';
+      if (inst.termination_reason) {
+        reasonHtml = `<span>Reason: ${inst.termination_reason}</span>`;
+      }
+      
+      return `
+        <div class="babysit-card">
+          <div class="babysit-header">
+            <div class="babysit-project">${inst.project}</div>
+            <span class="state-badge ${state}">${state}</span>
+          </div>
+          <div class="babysit-meta">
+            <span>Host: ${hostName}</span>
+            <span>Iter: ${iter} / ${maxIter}</span>
+            <span>Started: ${started}</span>
+            <span>PID: ${inst.pid}</span>
+            ${backoffHtml}
+            ${reasonHtml}
+          </div>
+          ${actionHtml}
+        </div>`;
+    }
+
+    function renderBabysitTab(babysitData) {
+      const instances = babysitData.instances_by_host || {};
+      const hosts = Object.keys(instances);
+      
+      if (hosts.length === 0) {
+        return '<div class="empty-state">No babysit processes running</div>';
+      }
+      
+      let html = '';
+      for (const host of hosts) {
+        const hostInstances = instances[host] || [];
+        if (hostInstances.length === 0) continue;
+        
+        html += `
+          <section class="role-section">
+            <div class="role-title">${host}</div>
+            <div class="hosts-grid">
+              ${hostInstances.map(inst => renderBabysitCard(inst, host)).join('')}
+            </div>
+          </section>`;
+      }
+      
+      return html || '<div class="empty-state">No babysit processes running</div>';
+    }
+
+    // Update backoff countdowns every second
+    setInterval(() => {
+      document.querySelectorAll('[data-backoff]').forEach(el => {
+        const ts = parseInt(el.getAttribute('data-backoff'));
+        el.textContent = fmtCountdown(ts);
+      });
+    }, 1000);
+
+    // -----------------------------------------------------------------------
     // History charts
     // -----------------------------------------------------------------------
 
@@ -532,21 +691,24 @@
     async function refresh() {
       document.getElementById('refresh-info').textContent = 'Refreshing…';
       try {
-        const [sumRes, cfgRes, slotsRes, capsRes] = await Promise.all([
+        const [sumRes, cfgRes, slotsRes, capsRes, babysitRes] = await Promise.all([
           fetch('/api/summary'),
           fetch('/api/config'),
           fetch('/api/slots'),
           fetch('/api/capabilities'),
+          fetch('/api/babysit'),
         ]);
         const summary  = await sumRes.json();
         const config   = await cfgRes.json();
         const slotsData = await slotsRes.json();
         const caps     = await capsRes.json();
+        const babysitData = await babysitRes.json();
 
         const expanded = new Set(
           [...document.querySelectorAll('.host-card.expanded')].map(c => c.dataset.host)
         );
 
+        // Render Hosts tab
         const byRole = {};
         for (const h of config.hosts) {
           const r = h.role || 'monitor';
@@ -562,7 +724,7 @@
 
         const allSlots = slotsData.slots;
 
-        document.getElementById('main-content').innerHTML = [
+        document.getElementById('tab-hosts').innerHTML = [
           renderSection('Server',      byRole['server'],     'server',     summary, slotsByHost, allSlots, capsByHost),
           renderSection('LLM Servers', byRole['llm-server'], 'llm-server', summary, slotsByHost, allSlots, capsByHost),
           renderSection('Dev Hosting', byRole['dev-laptop'], 'dev-laptop', summary, slotsByHost, allSlots, capsByHost),
@@ -573,6 +735,9 @@
           const card = document.getElementById('card-' + CSS.escape(host));
           if (card) { card.classList.add('expanded'); loadHistory(host); }
         }
+
+        // Render Babysit tab
+        document.getElementById('tab-babysit').innerHTML = renderBabysitTab(babysitData);
 
         document.getElementById('refresh-info').textContent = `Updated ${new Date().toLocaleTimeString()}`;
       } catch (e) {
@@ -595,6 +760,12 @@
     // -----------------------------------------------------------------------
     // Init
     // -----------------------------------------------------------------------
+
+    // Restore active tab from localStorage
+    const savedTab = localStorage.getItem('hlab-active-tab');
+    if (savedTab === 'babysit') {
+      switchTab('babysit');
+    }
 
     const adapterScript = document.createElement('script');
     adapterScript.src = 'https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js';

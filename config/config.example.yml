@@ -79,3 +79,14 @@ hosts:
 #   - name: "Portainer"
 #     type: http
 #     url: "http://localhost:9000"
+
+# ---
+# Babysit discovery (agent-side, optional)
+# The agent scans these paths for <project>.stop files and matching logs.
+# If the agent runs as a service account, add explicit paths for each user who runs babysit.sh.
+# babysit:
+#   scan_paths:
+#     - "~/sisyphus-logs"                 # Default if unset; expanded via os.path.expanduser
+#     # If agent runs as 'hlab-agent' but babysit runs as 'chris':
+#     # - "/home/chris/sisyphus-logs"
+#   include_last_action: false            # Default off — see babysit-tab-v0.1.md §3.2 redaction policy
