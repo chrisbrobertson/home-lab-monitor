@@ -199,6 +199,30 @@
       padding: 60px 24px; font-style: italic;
     }
 
+    /* Dev Slots tab */
+    .slots-summary-bar {
+      display: flex; gap: 24px; align-items: center;
+      padding: 12px 20px; margin-bottom: 16px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      font-size: 13px;
+    }
+    .slots-full-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .slots-full-table th {
+      text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .slots-full-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .slots-full-table tr:last-child td { border-bottom: none; }
+    .slots-full-table tr:hover td { background: var(--surface2); }
+    .slot-id-mono { font-family: monospace; font-size: 12px; color: var(--muted); }
+    .slot-meta-block {
+      font-family: monospace; font-size: 11px; color: var(--muted);
+      background: var(--surface2); border-radius: 4px; padding: 2px 6px;
+      max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      display: inline-block; cursor: default;
+    }
+
     @media (max-width: 600px) {
       .hosts-grid { grid-template-columns: 1fr; }
       .io-stats { grid-template-columns: 1fr; }
@@ -218,6 +242,7 @@
   <nav class="top-nav">
     <button id="tab-btn-hosts" class="active" onclick="switchTab('hosts')">Hosts</button>
     <button id="tab-btn-babysit" onclick="switchTab('babysit')">Babysit</button>
+    <button id="tab-btn-dev-slots" onclick="switchTab('dev-slots')">Dev Slots</button>
   </nav>
 
   <main>
@@ -225,6 +250,9 @@
       <div style="color:var(--muted);text-align:center;padding:48px">Loading…</div>
     </div>
     <div id="tab-babysit" style="display:none">
+      <div style="color:var(--muted);text-align:center;padding:48px">Loading…</div>
+    </div>
+    <div id="tab-dev-slots" style="display:none">
       <div style="color:var(--muted);text-align:center;padding:48px">Loading…</div>
     </div>
   </main>
@@ -253,6 +281,7 @@
       // Show/hide content
       document.getElementById('tab-hosts').style.display = tab === 'hosts' ? 'flex' : 'none';
       document.getElementById('tab-babysit').style.display = tab === 'babysit' ? 'flex' : 'none';
+      document.getElementById('tab-dev-slots').style.display = tab === 'dev-slots' ? 'block' : 'none';
     }
 
     // -----------------------------------------------------------------------
@@ -597,6 +626,61 @@
       return html || '<div class="empty-state">No babysit processes running</div>';
     }
 
+    // -----------------------------------------------------------------------
+    // Dev Slots tab renderer
+    // -----------------------------------------------------------------------
+
+    function renderDevSlotsTab(slotsData, caps) {
+      const slots = slotsData.slots || [];
+      const dockerHosts = (caps.hosts || []).filter(h => h.docker_enabled);
+      const totalCapacity = dockerHosts.reduce((sum, h) => sum + h.max_slots, 0);
+      const totalFree = dockerHosts.reduce((sum, h) => sum + h.free_slots, 0);
+
+      const summaryBar = `
+        <div class="slots-summary-bar">
+          <span><span style="color:var(--yellow);font-weight:600">${slots.length}</span> active slot${slots.length !== 1 ? 's' : ''}</span>
+          <span><span style="color:var(--green);font-weight:600">${totalFree}</span> free of ${totalCapacity} total</span>
+        </div>`;
+
+      if (slots.length === 0) {
+        return summaryBar + `<div class="empty-state">No active slots</div>`;
+      }
+
+      const rows = slots.map(s => {
+        const expiring = s.expires_in_seconds < 600;
+        const expiryClass = 'slot-expires' + (expiring ? ' expiring' : '');
+        const metaStr = s.meta && Object.keys(s.meta).length > 0 ? JSON.stringify(s.meta) : '';
+        const labelHtml = s.label ? `<br><span style="color:var(--muted);font-size:11px">${s.label}</span>` : '';
+        return `
+          <tr>
+            <td><span class="slot-id-mono">${s.id}</span></td>
+            <td><span style="font-weight:600">${s.caller}</span>${labelHtml}</td>
+            <td>${s.host}<br><span style="color:var(--muted);font-size:11px">${s.host_address || '—'}</span></td>
+            <td style="font-family:monospace;font-size:12px">${s.port_range_start}–${s.port_range_end}</td>
+            <td style="font-family:monospace;font-size:12px">${s.compose_project}</td>
+            <td>${timeAgo(s.created_ts)}</td>
+            <td><span class="${expiryClass}">${fmtExpiry(s.expires_in_seconds)}</span></td>
+            <td>${timeAgo(s.last_heartbeat_ts)}</td>
+            <td>${metaStr ? `<span class="slot-meta-block" title="${metaStr}">${metaStr}</span>` : '—'}</td>
+            <td><button class="btn-release" onclick="reapSlot('${s.id}')">Release</button></td>
+          </tr>`;
+      }).join('');
+
+      return summaryBar + `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:auto">
+          <table class="slots-full-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Caller / Label</th><th>Host</th><th>Ports</th>
+                <th>Project</th><th>Reserved</th><th>Expires</th><th>Heartbeat</th>
+                <th>Meta</th><th></th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }
+
     // Update backoff countdowns every second
     setInterval(() => {
       document.querySelectorAll('[data-backoff]').forEach(el => {
@@ -739,6 +823,9 @@
         // Render Babysit tab
         document.getElementById('tab-babysit').innerHTML = renderBabysitTab(babysitData);
 
+        // Render Dev Slots tab
+        document.getElementById('tab-dev-slots').innerHTML = renderDevSlotsTab(slotsData, caps);
+
         document.getElementById('refresh-info').textContent = `Updated ${new Date().toLocaleTimeString()}`;
       } catch (e) {
         document.getElementById('refresh-info').textContent = 'Error fetching data';
@@ -763,8 +850,8 @@
 
     // Restore active tab from localStorage
     const savedTab = localStorage.getItem('hlab-active-tab');
-    if (savedTab === 'babysit') {
-      switchTab('babysit');
+    if (savedTab === 'babysit' || savedTab === 'dev-slots') {
+      switchTab(savedTab);
     }
 
     const adapterScript = document.createElement('script');
