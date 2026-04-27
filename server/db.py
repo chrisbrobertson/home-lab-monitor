@@ -24,6 +24,9 @@ class Database:
         if self._conn is None:
             self._conn = sqlite3.connect(self.path, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
+            # WAL mode survives process kills without index corruption
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA synchronous=NORMAL")
         return self._conn
 
     def init(self):
