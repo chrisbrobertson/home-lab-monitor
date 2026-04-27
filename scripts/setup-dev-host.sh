@@ -190,8 +190,40 @@ services:
   - name: "Docker"
     type: process
     process: com.docker.backend
+babysit:
+  scan_paths:
+    - "~/sisyphus-logs"
+  include_last_action: true
 EOF
     _ok "agent-config.yml written to ${AGENT_CONFIG}"
+fi
+
+# 2d-babysit. Patch babysit section into existing configs that predate this step
+if /usr/bin/python3 -c "
+import yaml, sys
+with open('${AGENT_CONFIG}') as f:
+    cfg = yaml.safe_load(f) or {}
+sys.exit(0 if 'babysit' in cfg else 1)
+" 2>/dev/null; then
+    _skip "babysit already configured in agent-config.yml"
+else
+    _inst "Adding babysit section to agent-config.yml..."
+    export AGENT_CONFIG
+    /usr/bin/python3 - <<'PYEOF'
+import os, yaml
+path = os.environ["AGENT_CONFIG"]
+with open(path) as f:
+    cfg = yaml.safe_load(f) or {}
+cfg.setdefault("babysit", {
+    "scan_paths": ["~/sisyphus-logs"],
+    "include_last_action": True,
+})
+tmp = path + ".tmp"
+with open(tmp, "w") as f:
+    yaml.dump(cfg, f, default_flow_style=False)
+os.replace(tmp, path)
+PYEOF
+    _ok "babysit section added to agent-config.yml"
 fi
 
 # 2e. LaunchAgent plist — install or update if content changed

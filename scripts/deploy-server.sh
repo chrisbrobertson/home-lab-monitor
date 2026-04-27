@@ -55,6 +55,11 @@ fi
 # ── Step 3: Copy files ─────────────────────────────────────────────────────
 echo ""
 echo "── Step 3: Copy files ─────────────────────────────────────────────────────"
+_inst "Ensuring remote directories exist..."
+ssh "${REMOTE_HOST}" "mkdir -p ${REMOTE_DIR}/server ${REMOTE_DIR}/server/static ${REMOTE_DIR}/agent ${REMOTE_DIR}/logs" \
+    && _ok "Remote directories ready" \
+    || { _fail "mkdir on remote failed"; exit 1; }
+
 _inst "Copying server modules..."
 scp -q \
     "${REPO_ROOT}/server/server.py" \
@@ -65,6 +70,13 @@ scp -q \
     "${REMOTE_HOST}:${REMOTE_DIR}/server/" \
     && _ok "server/*.py deployed" \
     || { _fail "scp server modules failed"; exit 1; }
+
+_inst "Copying agent..."
+scp -q \
+    "${REPO_ROOT}/agent/agent.py" \
+    "${REMOTE_HOST}:${REMOTE_DIR}/agent/agent.py" \
+    && _ok "agent/agent.py deployed" \
+    || { _fail "scp agent.py failed"; exit 1; }
 
 _inst "Copying dashboard..."
 scp -q \
@@ -81,6 +93,13 @@ scp -q \
     && _ok "config.yml + requirements.txt deployed" \
     || { _fail "scp config failed"; exit 1; }
 
+_inst "Copying agent config..."
+scp -q \
+    "${REPO_ROOT}/agent-config.yml" \
+    "${REMOTE_HOST}:${REMOTE_DIR}/agent-config.yml" \
+    && _ok "agent-config.yml deployed" \
+    || { _fail "scp agent-config.yml failed"; exit 1; }
+
 # ── Step 4: Install dependencies ──────────────────────────────────────────
 echo ""
 echo "── Step 4: Dependencies ───────────────────────────────────────────────────"
@@ -92,9 +111,24 @@ else
     _fail "pip install failed"
 fi
 
-# ── Step 5: Restart service ────────────────────────────────────────────────
+# ── Step 5: Restart services ───────────────────────────────────────────────
 echo ""
-echo "── Step 5: Restart service ────────────────────────────────────────────────"
+echo "── Step 5: Restart services ───────────────────────────────────────────────"
+_inst "Installing/restarting com.homelab.monitor.agent..."
+scp -q \
+    "${REPO_ROOT}/launchd/com.homelab.monitor.agent.plist" \
+    "${REMOTE_HOST}:/tmp/com.homelab.monitor.agent.plist" 2>/dev/null || true
+ssh "${REMOTE_HOST}" "
+    if [[ -f /tmp/com.homelab.monitor.agent.plist ]]; then
+        sudo cp /tmp/com.homelab.monitor.agent.plist /Library/LaunchAgents/ 2>/dev/null || true
+        rm -f /tmp/com.homelab.monitor.agent.plist
+    fi
+    launchctl bootout gui/\$(id -u)/com.homelab.monitor.agent 2>/dev/null || true
+    sleep 1
+    launchctl bootstrap gui/\$(id -u) /Library/LaunchAgents/com.homelab.monitor.agent.plist 2>/dev/null || true
+" 2>&1 || true
+sleep 2
+
 _inst "Restarting com.homelab.monitor.server..."
 ssh "${REMOTE_HOST}" "
     launchctl bootout gui/\$(id -u)/com.homelab.monitor.server 2>/dev/null || true
@@ -115,6 +149,7 @@ fi
 # ── Step 6: Verify ─────────────────────────────────────────────────────────
 echo ""
 echo "── Step 6: Verification ───────────────────────────────────────────────────"
+sleep 3   # allow both services a moment to finish starting
 
 # /api/summary
 SUMMARY=$(curl -s --max-time 10 "http://${REMOTE_IP}:${SERVER_PORT}/api/summary" 2>/dev/null || true)
