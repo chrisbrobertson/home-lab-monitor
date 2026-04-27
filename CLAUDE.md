@@ -35,7 +35,8 @@ home-lab-monitor/
 ├── config/
 │   └── config.example.yml  # Template for host, registry, and slot_policy configuration
 ├── scripts/
-│   └── setup-dev-host.sh   # Idempotent macOS dev slot host bootstrap (see specs/dev-host-setup-v0.1.md)
+│   ├── setup-dev-host.sh   # Idempotent macOS dev slot host bootstrap (see specs/dev-host-setup-v0.1.md)
+│   └── deploy-server.sh    # Deploy server to Mac Mini: runs tests, copies files, restarts service, verifies
 ├── systemd/                # Linux service units for agent and server
 ├── launchd/                # macOS plist files for agent and server (user + system variants)
 ├── templates/
@@ -145,12 +146,40 @@ The `detail` field is included in service check results only when non-null. The 
 
 ## Testing
 
-No test suite exists yet. When adding tests:
+Tests live in `tests/`. Run them with:
 
+```bash
+python3 -m pytest tests/ -q
+```
+
+- `tests/test_api.py` — integration tests for all server API endpoints (httpx ASGITransport)
+- `tests/test_db.py` — SQLite layer unit tests
+- `tests/test_placement.py` — slot placement logic unit tests
+
+Conventions:
 - Use `pytest` for unit tests.
 - Agent metric collectors (`get_cpu`, `get_memory`, `get_disk`, etc.) are pure functions — test them directly.
-- Server API routes can be tested with FastAPI's `TestClient`.
+- Server API routes use `httpx.AsyncClient` with `ASGITransport` (not FastAPI's `TestClient`) — see `test_api.py` for the fixture pattern.
 - Do not mock `psutil` unless testing error-path behavior — prefer calling real functions.
+- Module-level globals in `server.py` (e.g. `_db`, `_registry_client`, `_probe_host_health`) are monkeypatched via the `patched_server` fixture.
+
+## Deployment
+
+**Always use `scripts/deploy-server.sh` to deploy the server to the Mac Mini.** Never manually scp files or restart the service — the script runs the test suite before deploying and verifies the server is healthy afterward.
+
+```bash
+./scripts/deploy-server.sh
+```
+
+The script:
+1. Runs the full test suite — aborts if any test fails
+2. Checks SSH connectivity to the Mac Mini
+3. Copies all server modules, static files, config, and requirements
+4. Installs Python dependencies on the remote
+5. Restarts the `com.homelab.monitor.server` LaunchAgent
+6. Verifies `/api/summary`, `/api/capabilities`, and the dashboard HTML respond correctly
+
+Environment overrides: `REMOTE_HOST`, `REMOTE_DIR`, `SERVER_PORT`.
 
 ## Documentation
 
