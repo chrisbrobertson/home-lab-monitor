@@ -2,7 +2,9 @@
 # setup-dev-host.sh — idempotent macOS dev slot host bootstrap
 # See specs/dev-host-setup-v0.1.md for the full specification and idempotency contract.
 #
-# Usage: ./scripts/setup-dev-host.sh
+# Usage: ./scripts/setup-dev-host.sh [--agent-only]
+#   --agent-only   Install agent only — skip Homebrew, Colima, and Docker setup.
+#                  Use on hosts that run babysit processes but are not dev slot hosts.
 # When run by an agent over SSH, set REPO_ROOT explicitly.
 #
 # Environment variables (all have defaults):
@@ -15,6 +17,11 @@
 #   REPO_ROOT       Path to repo root         (default: parent of scripts/)
 
 set -uo pipefail
+
+AGENT_ONLY=0
+for arg in "$@"; do
+  [[ "$arg" == "--agent-only" ]] && AGENT_ONLY=1
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(dirname "$SCRIPT_DIR")}"
@@ -62,8 +69,10 @@ elif [[ -x /usr/local/bin/brew ]]; then
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Step 1: Prerequisites
+# Step 1: Prerequisites (skipped in --agent-only mode)
 # ══════════════════════════════════════════════════════════════════════════════
+if [[ "$AGENT_ONLY" -eq 0 ]]; then
+
 echo "── Step 1: Prerequisites ──────────────────────────────────────────────────"
 
 # 1a. Homebrew
@@ -129,6 +138,11 @@ else
     fi
 fi
 
+else
+  echo ""
+  _skip "Step 1: Prerequisites (agent-only mode — Homebrew/Colima/Docker not needed)"
+fi  # AGENT_ONLY
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Step 2: Agent deployment
 # ══════════════════════════════════════════════════════════════════════════════
@@ -182,7 +196,20 @@ if [[ -f "$AGENT_CONFIG" ]]; then
     _skip "agent-config.yml already exists (not overwritten)"
 else
     _inst "Writing default agent-config.yml..."
-    cat > "$AGENT_CONFIG" <<EOF
+    if [[ "$AGENT_ONLY" -eq 1 ]]; then
+        cat > "$AGENT_CONFIG" <<EOF
+port: ${AGENT_PORT}
+services:
+  - name: "SSH"
+    type: port
+    port: 22
+babysit:
+  scan_paths:
+    - "~/sisyphus-logs"
+  include_last_action: true
+EOF
+    else
+        cat > "$AGENT_CONFIG" <<EOF
 port: ${AGENT_PORT}
 services:
   - name: "Colima"
@@ -195,6 +222,7 @@ babysit:
     - "~/sisyphus-logs"
   include_last_action: true
 EOF
+    fi
     _ok "agent-config.yml written to ${AGENT_CONFIG}"
 fi
 
@@ -271,8 +299,10 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Step 3: Colima
+# Step 3: Colima (skipped in --agent-only mode)
 # ══════════════════════════════════════════════════════════════════════════════
+if [[ "$AGENT_ONLY" -eq 0 ]]; then
+
 echo ""
 echo "── Step 3: Colima ─────────────────────────────────────────────────────────"
 
@@ -335,6 +365,11 @@ else
     fi
 fi
 
+else
+  echo ""
+  _skip "Step 3: Colima (agent-only mode)"
+fi  # AGENT_ONLY
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Step 4: Verification
 # ══════════════════════════════════════════════════════════════════════════════
@@ -360,30 +395,32 @@ else
     _fail "Agent /metrics check failed"
 fi
 
-# Colima running
-if colima status 2>&1 | grep -qi "running"; then
-    _ok "Colima is running"
-else
-    _fail "Colima is not running"
-fi
+if [[ "$AGENT_ONLY" -eq 0 ]]; then
+    # Colima running
+    if colima status 2>&1 | grep -qi "running"; then
+        _ok "Colima is running"
+    else
+        _fail "Colima is not running"
+    fi
 
-# Docker sees the insecure registry
-if docker info 2>/dev/null | grep -qF "$REGISTRY"; then
-    _ok "Docker info shows insecure registry ${REGISTRY}"
-else
-    _fail "Docker info does not show ${REGISTRY} — try 'colima restart'"
-fi
+    # Docker sees the insecure registry
+    if docker info 2>/dev/null | grep -qF "$REGISTRY"; then
+        _ok "Docker info shows insecure registry ${REGISTRY}"
+    else
+        _fail "Docker info does not show ${REGISTRY} — try 'colima restart'"
+    fi
 
-# SSH verification (manual — requires action on calling machine)
-HOST_IP=$(ipconfig getifaddr en0 2>/dev/null \
-    || ipconfig getifaddr en1 2>/dev/null \
-    || echo "<HOST_IP>")
-echo ""
-echo "[INFO] Manual SSH verification (run from calling machine):"
-echo "       DOCKER_HOST=ssh://$(whoami)@${HOST_IP} docker ps"
-echo ""
-echo "[INFO] If SSH key is not yet authorised on this host:"
-echo "       ssh-copy-id $(whoami)@${HOST_IP}"
+    # SSH verification (manual — requires action on calling machine)
+    HOST_IP=$(ipconfig getifaddr en0 2>/dev/null \
+        || ipconfig getifaddr en1 2>/dev/null \
+        || echo "<HOST_IP>")
+    echo ""
+    echo "[INFO] Manual SSH verification (run from calling machine):"
+    echo "       DOCKER_HOST=ssh://$(whoami)@${HOST_IP} docker ps"
+    echo ""
+    echo "[INFO] If SSH key is not yet authorised on this host:"
+    echo "       ssh-copy-id $(whoami)@${HOST_IP}"
+fi  # AGENT_ONLY
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Summary
