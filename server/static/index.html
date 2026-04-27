@@ -649,13 +649,10 @@
       }
       
       return `
-        <div class="babysit-card">
+        <div class="babysit-card" style="cursor:pointer" onclick="viewBabysitLog('${hostName}', '${inst.project}', 200, this, false)">
           <div class="babysit-header">
             <div class="babysit-project">${inst.project}</div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <button class="btn-view-log" onclick="viewBabysitLog('${hostName}', '${inst.project}', 200, this, false)">View Log</button>
-              <span class="state-badge ${state}">${state}</span>
-            </div>
+            <span class="state-badge ${state}">${state}</span>
           </div>
           <div class="babysit-meta">
             <span>Host: ${hostName}</span>
@@ -666,7 +663,7 @@
             ${reasonHtml}
           </div>
           ${actionHtml}
-          <div class="babysit-log-panel">
+          <div class="babysit-log-panel" onclick="event.stopPropagation()">
             <div class="log-toolbar">
               <select class="log-lines-select" onchange="viewBabysitLog('${hostName}', '${inst.project}', this.value, this, true)">
                 <option value="100">100 lines</option>

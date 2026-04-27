@@ -10,6 +10,11 @@
         <string>/opt/hlab/agent/agent.py</string>
         <string>/opt/hlab/agent-config.yml</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/opt/hlab/lib</string>
+    </dict>
     <key>WorkingDirectory</key>
     <string>/opt/hlab</string>
     <key>RunAtLoad</key>

@@ -33,8 +33,17 @@ COLIMA_MEMORY="${COLIMA_MEMORY:-12}"
 COLIMA_DISK="${COLIMA_DISK:-60}"
 
 PLIST_LABEL="com.homelab.monitor.agent"
-PLIST_DEST="/Library/LaunchAgents/${PLIST_LABEL}.plist"
 PLIST_SRC="${REPO_ROOT}/launchd/${PLIST_LABEL}.plist"
+
+# agent-only mode uses user-owned paths — no sudo required
+if [[ "$AGENT_ONLY" -eq 1 ]]; then
+    HLAB_DIR="${HLAB_DIR:-$HOME/.hlab}"
+    PLIST_DEST="${HOME}/Library/LaunchAgents/${PLIST_LABEL}.plist"
+else
+    HLAB_DIR="${HLAB_DIR:-/opt/hlab}"
+    PLIST_DEST="/Library/LaunchAgents/${PLIST_LABEL}.plist"
+fi
+
 AGENT_SRC="${REPO_ROOT}/agent/agent.py"
 AGENT_DEST="${HLAB_DIR}/agent/agent.py"
 AGENT_CONFIG="${HLAB_DIR}/agent-config.yml"
@@ -154,8 +163,12 @@ if [[ -d "${HLAB_DIR}/agent" && -d "${HLAB_DIR}/logs" ]]; then
     _skip "${HLAB_DIR}/{agent,logs} already exist"
 else
     _inst "Creating ${HLAB_DIR}/{agent,logs}..."
-    sudo mkdir -p "${HLAB_DIR}/agent" "${HLAB_DIR}/logs"
-    sudo chown -R "$(whoami)" "${HLAB_DIR}"
+    if [[ "$AGENT_ONLY" -eq 1 ]]; then
+        mkdir -p "${HLAB_DIR}/agent" "${HLAB_DIR}/logs"
+    else
+        sudo mkdir -p "${HLAB_DIR}/agent" "${HLAB_DIR}/logs"
+        sudo chown -R "$(whoami)" "${HLAB_DIR}"
+    fi
     _ok "Directories created and owned by $(whoami)"
 fi
 
@@ -256,20 +269,58 @@ fi
 
 # 2e. LaunchAgent plist — install or update if content changed
 PLIST_UPDATED=0
-if [[ -f "$PLIST_DEST" ]] && diff -q "$PLIST_SRC" "$PLIST_DEST" &>/dev/null; then
-    _skip "LaunchAgent plist up to date"
-else
-    _inst "Installing LaunchAgent plist → ${PLIST_DEST}..."
-    # Unload before replacing
-    if launchctl list "$PLIST_LABEL" &>/dev/null; then
+if [[ "$AGENT_ONLY" -eq 1 ]]; then
+    # Generate plist with user-owned paths (no sudo required)
+    mkdir -p "$(dirname "$PLIST_DEST")"
+    _PLIST_CONTENT="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
+<dict>
+    <key>Label</key>
+    <string>${PLIST_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>${HLAB_DIR}/agent/agent.py</string>
+        <string>${HLAB_DIR}/agent-config.yml</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>${HLAB_DIR}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${HLAB_DIR}/logs/agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>${HLAB_DIR}/logs/agent.err</string>
+</dict>
+</plist>"
+    if [[ -f "$PLIST_DEST" ]] && [[ "$(cat "$PLIST_DEST")" == "$_PLIST_CONTENT" ]]; then
+        _skip "LaunchAgent plist up to date"
+    else
+        _inst "Writing LaunchAgent plist → ${PLIST_DEST}..."
         launchctl bootout "gui/$(id -u)/${PLIST_LABEL}" 2>/dev/null || true
         sleep 1
-    fi
-    if sudo cp "$PLIST_SRC" "$PLIST_DEST"; then
+        printf '%s\n' "$_PLIST_CONTENT" > "$PLIST_DEST"
         PLIST_UPDATED=1
-        _ok "LaunchAgent plist installed"
+        _ok "LaunchAgent plist written"
+    fi
+else
+    if [[ -f "$PLIST_DEST" ]] && diff -q "$PLIST_SRC" "$PLIST_DEST" &>/dev/null; then
+        _skip "LaunchAgent plist up to date"
     else
-        _fail "Failed to install LaunchAgent plist (sudo cp failed)"
+        _inst "Installing LaunchAgent plist → ${PLIST_DEST}..."
+        if launchctl list "$PLIST_LABEL" &>/dev/null; then
+            launchctl bootout "gui/$(id -u)/${PLIST_LABEL}" 2>/dev/null || true
+            sleep 1
+        fi
+        if sudo cp "$PLIST_SRC" "$PLIST_DEST"; then
+            PLIST_UPDATED=1
+            _ok "LaunchAgent plist installed"
+        else
+            _fail "Failed to install LaunchAgent plist (sudo cp failed)"
+        fi
     fi
 fi
 
