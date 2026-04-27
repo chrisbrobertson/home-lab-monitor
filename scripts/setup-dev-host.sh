@@ -10,7 +10,7 @@
 #   AGENT_PORT      Agent listen port         (default: 9100)
 #   REGISTRY        Lab registry (insecure)   (default: 192.168.1.93:5000)
 #   COLIMA_CPU      Colima VM CPU count       (default: 4)
-#   COLIMA_MEMORY   Colima VM memory in GB    (default: 8)
+#   COLIMA_MEMORY   Colima VM memory in GB    (default: 12; use 24 for 2-slot/32GB hosts)
 #   COLIMA_DISK     Colima VM disk in GB      (default: 60)
 #   REPO_ROOT       Path to repo root         (default: parent of scripts/)
 
@@ -22,7 +22,7 @@ HLAB_DIR="${HLAB_DIR:-/opt/hlab}"
 AGENT_PORT="${AGENT_PORT:-9100}"
 REGISTRY="${REGISTRY:-192.168.1.93:5000}"
 COLIMA_CPU="${COLIMA_CPU:-4}"
-COLIMA_MEMORY="${COLIMA_MEMORY:-8}"
+COLIMA_MEMORY="${COLIMA_MEMORY:-12}"
 COLIMA_DISK="${COLIMA_DISK:-60}"
 
 PLIST_LABEL="com.homelab.monitor.agent"

@@ -2,7 +2,7 @@
 
 A dev slot gives you a reserved Docker deployment target on a home lab machine: an isolated port range, an SSH path into a Colima runtime, and access to the shared image registry. Reserve a slot, push your image, run it, and release — the fleet handles the rest.
 
-**Resource envelope per dev host:** Colima is configured with **12 GB RAM** and 4 CPUs. Each host supports up to 2 concurrent slots, so plan for up to ~6 GB RAM per slot when the host is fully loaded. CPU is generally not a bottleneck for development workloads.
+**Resource envelope per slot:** Each slot gets **12 GB RAM** and 4 CPUs via Colima. Hosts are sized accordingly — 16 GB machines support 1 concurrent slot, 32 GB machines support 2. CPU is generally not a bottleneck for development workloads.
 
 ---
 

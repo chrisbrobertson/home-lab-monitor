@@ -31,8 +31,6 @@ hosts:
     port: 9100
     ssh_user: "crobertson"
     role: llm-server
-    docker: true
-    max_slots: 4
 
   - name: "C02D83TGMD6T"
     address: "192.168.1.81"
