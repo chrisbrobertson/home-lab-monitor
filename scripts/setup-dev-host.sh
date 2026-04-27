@@ -274,23 +274,29 @@ else
 fi
 
 # 2f. Load / reload LaunchAgent
-if launchctl list "$PLIST_LABEL" &>/dev/null; then
+# Always use the GUI session owner's UID — not root's — for launchctl.
+# When this script is run with sudo, $SUDO_UID has the real user's UID.
+_GUI_UID="${SUDO_UID:-$(id -u)}"
+
+if launchctl print "gui/${_GUI_UID}/${PLIST_LABEL}" &>/dev/null 2>&1; then
     if [[ "$AGENT_UPDATED" -eq 1 || "$PLIST_UPDATED" -eq 1 ]]; then
         _inst "Reloading LaunchAgent (agent or plist changed)..."
-        if launchctl bootstrap "gui/$(id -u)" "$PLIST_DEST" 2>/dev/null; then
-            _ok "LaunchAgent reloaded (bootstrap)"
-        elif launchctl load -w "$PLIST_DEST" 2>/dev/null; then
-            _warn "LaunchAgent reloaded via legacy 'load -w'"
+        launchctl bootout "gui/${_GUI_UID}/${PLIST_LABEL}" 2>/dev/null || true
+        sleep 1
+        if launchctl bootstrap "gui/${_GUI_UID}" "$PLIST_DEST" 2>/dev/null; then
+            _ok "LaunchAgent reloaded"
         else
             _warn "LaunchAgent reload failed — agent will restart on next GUI login"
         fi
     else
-        _skip "LaunchAgent ${PLIST_LABEL} already running"
+        _inst "Ensuring LaunchAgent is running (kickstart)..."
+        launchctl kickstart -k "gui/${_GUI_UID}/${PLIST_LABEL}" 2>/dev/null || true
+        _ok "LaunchAgent kickstarted"
     fi
 else
     _inst "Loading LaunchAgent ${PLIST_LABEL}..."
-    if launchctl bootstrap "gui/$(id -u)" "$PLIST_DEST" 2>/dev/null; then
-        _ok "LaunchAgent loaded (bootstrap)"
+    if launchctl bootstrap "gui/${_GUI_UID}" "$PLIST_DEST" 2>/dev/null; then
+        _ok "LaunchAgent loaded"
     elif launchctl load -w "$PLIST_DEST" 2>/dev/null; then
         _warn "LaunchAgent loaded via legacy 'load -w' (no active GUI session detected)"
     else
