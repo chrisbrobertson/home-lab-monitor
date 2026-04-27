@@ -25,7 +25,6 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(dirname "$SCRIPT_DIR")}"
-HLAB_DIR="${HLAB_DIR:-/opt/hlab}"
 AGENT_PORT="${AGENT_PORT:-9100}"
 REGISTRY="${REGISTRY:-192.168.1.93:5000}"
 COLIMA_CPU="${COLIMA_CPU:-4}"
