@@ -198,6 +198,24 @@ def api_babysit():
     })
 
 
+@app.get("/api/babysit/{host}/{project}/log")
+async def api_babysit_log(host: str, project: str, lines: int = Query(200, ge=1, le=5000)):
+    config = load_config()
+    host_cfg = next((h for h in config.get("hosts", []) if h["name"] == host), None)
+    if host_cfg is None:
+        raise HTTPException(404, f"Host '{host}' not configured")
+    url = f"http://{host_cfg['address']}:{host_cfg.get('port', 9100)}/babysit-log"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, params={"project": project, "lines": lines}, timeout=10.0)
+            resp.raise_for_status()
+            return JSONResponse(resp.json())
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(e.response.status_code, f"Agent error: {e}")
+    except Exception as e:
+        raise HTTPException(503, f"Agent unreachable: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Capabilities
 # ---------------------------------------------------------------------------

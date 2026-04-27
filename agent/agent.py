@@ -553,6 +553,54 @@ class MetricsHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"ok")
+        elif self.path.startswith("/babysit-log"):
+            from urllib.parse import urlparse, parse_qs
+            params = parse_qs(urlparse(self.path).query)
+            project = params.get("project", [""])[0]
+            try:
+                lines = min(int(params.get("lines", ["200"])[0]), 5000)
+            except ValueError:
+                lines = 200
+
+            if not project:
+                self.send_error(400, "project required")
+                return
+
+            bsit_cfg = _config.get("babysit", {})
+            raw_paths = bsit_cfg.get("scan_paths", ["~/sisyphus-logs"])
+            log_path = None
+            for sp in raw_paths:
+                candidates = sorted(
+                    glob.glob(os.path.join(os.path.expanduser(sp), f"{project}-*.log")),
+                    key=os.path.getmtime,
+                )
+                if candidates:
+                    log_path = candidates[-1]
+                    break
+
+            if not log_path:
+                self.send_error(404, f"No log found for project '{project}'")
+                return
+
+            try:
+                with open(log_path, errors="replace") as f:
+                    all_lines = f.readlines()
+                tail = all_lines[-lines:]
+                body = json.dumps({
+                    "project": project,
+                    "log_path": log_path,
+                    "total_lines": len(all_lines),
+                    "showing_lines": len(tail),
+                    "content": "".join(tail),
+                }).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(body)
+            except OSError as e:
+                self.send_error(500, str(e))
         else:
             self.send_error(404)
 

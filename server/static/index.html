@@ -194,6 +194,38 @@
       padding: 8px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; color: var(--text);
     }
+    .babysit-log-panel {
+      display: none; flex-direction: column; gap: 8px;
+      border-top: 1px solid var(--border); padding-top: 10px; margin-top: 2px;
+    }
+    .babysit-card.log-open .babysit-log-panel { display: flex; }
+    .log-toolbar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .log-lines-select {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer;
+    }
+    .btn-log-refresh {
+      background: transparent; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 4px; padding: 2px 10px; cursor: pointer; font-size: 11px;
+      transition: border-color 0.15s;
+    }
+    .btn-log-refresh:hover { border-color: var(--accent); color: var(--accent); }
+    .log-meta { color: var(--muted); font-size: 11px; margin-left: auto; }
+    .log-content {
+      font-family: monospace; font-size: 11px; line-height: 1.5;
+      background: var(--surface2); border-radius: 6px; padding: 10px 12px;
+      overflow-y: auto; max-height: 400px; white-space: pre-wrap; word-break: break-all;
+      color: var(--text);
+    }
+    .btn-view-log {
+      background: transparent; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 4px; padding: 2px 10px; cursor: pointer; font-size: 11px;
+      transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
+    }
+    .btn-view-log:hover { border-color: var(--accent); color: var(--accent); }
+    .babysit-card.log-open .btn-view-log { border-color: var(--accent); color: var(--accent); }
     .empty-state {
       color: var(--muted); font-size: 14px; text-align: center;
       padding: 60px 24px; font-style: italic;
@@ -349,6 +381,39 @@
         console.error('reap failed', e);
       }
       await refresh();
+    }
+
+    async function viewBabysitLog(host, project, lines, triggerEl, reload) {
+      const card = triggerEl.closest('.babysit-card');
+      const panel = card.querySelector('.babysit-log-panel');
+      const contentEl = card.querySelector('.log-content');
+      const metaEl = card.querySelector('.log-meta');
+
+      if (!reload && card.classList.contains('log-open')) {
+        card.classList.remove('log-open');
+        return;
+      }
+
+      card.classList.add('log-open');
+      contentEl.textContent = 'Loading…';
+      metaEl.textContent = '';
+
+      try {
+        const r = await fetch(
+          `/api/babysit/${encodeURIComponent(host)}/${encodeURIComponent(project)}/log?lines=${lines}`
+        );
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({ detail: r.statusText }));
+          contentEl.textContent = `Error: ${err.detail || r.statusText}`;
+          return;
+        }
+        const data = await r.json();
+        contentEl.textContent = data.content || '(empty)';
+        metaEl.textContent = `${data.showing_lines} / ${data.total_lines} lines`;
+        contentEl.scrollTop = contentEl.scrollHeight;
+      } catch (e) {
+        contentEl.textContent = `Error: ${e.message}`;
+      }
     }
 
     // -----------------------------------------------------------------------
@@ -587,7 +652,10 @@
         <div class="babysit-card">
           <div class="babysit-header">
             <div class="babysit-project">${inst.project}</div>
-            <span class="state-badge ${state}">${state}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button class="btn-view-log" onclick="viewBabysitLog('${hostName}', '${inst.project}', 200, this, false)">View Log</button>
+              <span class="state-badge ${state}">${state}</span>
+            </div>
           </div>
           <div class="babysit-meta">
             <span>Host: ${hostName}</span>
@@ -598,6 +666,19 @@
             ${reasonHtml}
           </div>
           ${actionHtml}
+          <div class="babysit-log-panel">
+            <div class="log-toolbar">
+              <select class="log-lines-select" onchange="viewBabysitLog('${hostName}', '${inst.project}', this.value, this, true)">
+                <option value="100">100 lines</option>
+                <option value="200" selected>200 lines</option>
+                <option value="500">500 lines</option>
+                <option value="1000">1000 lines</option>
+              </select>
+              <button class="btn-log-refresh" onclick="viewBabysitLog('${hostName}', '${inst.project}', this.closest('.babysit-card').querySelector('.log-lines-select').value, this, true)">Refresh</button>
+              <span class="log-meta"></span>
+            </div>
+            <div class="log-content"></div>
+          </div>
         </div>`;
     }
 
