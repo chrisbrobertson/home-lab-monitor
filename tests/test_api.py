@@ -45,6 +45,10 @@ def patched_server(seeded_db, minimal_config, monkeypatch):
     monkeypatch.setattr(srv, "_db", seeded_db)
     monkeypatch.setattr(srv, "_registry_client", None)
 
+    async def _always_healthy(address, port, client):
+        return True
+    monkeypatch.setattr(srv, "_probe_host_health", _always_healthy)
+
     return srv
 
 

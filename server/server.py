@@ -222,7 +222,7 @@ async def api_capabilities():
             "docker_enabled": hcfg.docker,
             "active_slots": active,
             "max_slots": max_slots if hcfg.docker else 0,
-            "free_slots": max(0, max_slots - active) if hcfg.docker else 0,
+            "free_slots": max(0, max_slots - active) if (hcfg.docker and online) else 0,
             "cpu_percent": m.get("cpu", {}).get("percent") if online else None,
             "mem_percent": m.get("memory", {}).get("percent") if online else None,
         })
@@ -247,6 +247,15 @@ async def api_capabilities():
 # ---------------------------------------------------------------------------
 # Slot reservation API
 # ---------------------------------------------------------------------------
+
+async def _probe_host_health(address: str, port: int, client: httpx.AsyncClient) -> bool:
+    """Return True if the agent at address:port responds with 'ok'. Patchable in tests."""
+    try:
+        r = await client.get(f"http://{address}:{port}/health", timeout=3.0)
+        return r.status_code == 200 and r.text.strip() == "ok"
+    except Exception:
+        return False
+
 
 def _make_slot_id(caller: str, label: str) -> str:
     raw = f"{caller}|{label}|{time.time_ns()}"
@@ -311,17 +320,28 @@ async def api_create_slot(request: Request):
             for hcfg in server_cfg.hosts
         }
 
-        chosen_host, port_offset, detail = pick_host(
-            host_configs=server_cfg.hosts,
-            metrics_by_host=metrics_by_host,
-            slots_by_host=slots_by_host,
-            policy=sp,
-            used_offsets_by_host=used_offsets_by_host,
-            host_hint=host_hint,
-        )
+        # Pick a host then confirm it is reachable before committing the slot.
+        # If the probe fails, mark the host offline and try the next candidate.
+        async with httpx.AsyncClient() as probe:
+            while True:
+                chosen_host, port_offset, detail = pick_host(
+                    host_configs=server_cfg.hosts,
+                    metrics_by_host=metrics_by_host,
+                    slots_by_host=slots_by_host,
+                    policy=sp,
+                    used_offsets_by_host=used_offsets_by_host,
+                    host_hint=host_hint,
+                )
+                if chosen_host is None:
+                    raise HTTPException(409, f"No slot available: {detail}")
 
-        if chosen_host is None:
-            raise HTTPException(409, f"No slot available: {detail}")
+                chosen_cfg = next(
+                    h for h in server_cfg.hosts if h.name == chosen_host
+                )
+                if await _probe_host_health(chosen_cfg.address, chosen_cfg.port, probe):
+                    break
+                _db.insert_offline(chosen_host)
+                metrics_by_host[chosen_host] = {"_online": False}
 
         # Retry on (rare) ID collision
         for _ in range(3):
